@@ -83,6 +83,7 @@ def generate_export_pipeline_template(output):
                 ObjectField(Key='scriptArgument', StringValue=get_output_file_name('transactions', start, end)),
                 ObjectField(Key='scriptArgument', StringValue=get_output_file_name('erc20_transfers', start, end)),
                 ObjectField(Key='workerGroup', StringValue='ethereum-etl'),
+                ObjectField(Key='maximumRetries', StringValue='5'),
                 ObjectField(Key='output', RefValue='S3OutputLocation'),
                 ObjectField(Key='stage', StringValue='true')
 

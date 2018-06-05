@@ -5,6 +5,14 @@ from troposphere.datapipeline import Pipeline, PipelineTag, PipelineObject, Obje
 from ethereumetl.templates.config import EXPORT_JOBS
 
 
+def get_output_file_name(base_file_name, start_block, end_block):
+    padded_start_block = str(start_block).rjust(8, '0')
+    padded_end_block = str(end_block).rjust(8, '0')
+    return '/start_block={}/end_block={}/{}_{}_{}.csv'.format(
+        padded_start_block, padded_end_block, base_file_name, padded_start_block, padded_end_block
+    )
+
+
 def generate_export_pipeline_template(output):
     t = Template()
 
@@ -26,7 +34,11 @@ def generate_export_pipeline_template(output):
         "Command",
         Description="Shell command that will be executed on workers",
         Type="String",
-        Default="cd /home/ec2-user/ethereum-etl && bash -x export_all.sh -s $1 -e $2 -b $3 -i /home/ec2-user/.ethereum/geth.ipc -o ${OUTPUT1_STAGING_DIR}"
+        Default="cd /home/ec2-user/ethereum-etl && IPC_PATH=/home/ec2-user/.ethereum/geth.ipc && "
+                "python3 export_blocks_and_transactions.py -s $1 -e $2 -b $3 --ipc-path $IPC_PATH -w 1 "
+                "--blocks-output ${OUTPUT1_STAGING_DIR}${4} --transactions-output ${OUTPUT1_STAGING_DIR}${5} && "
+                "python3 export_erc20_transfers.py -s $1 -e $2 -b $3 --ipc-path $IPC_PATH -w 1 "
+                "--output ${OUTPUT1_STAGING_DIR}${6}"
     ))
 
     t.add_resource(Pipeline(
@@ -68,6 +80,9 @@ def generate_export_pipeline_template(output):
                 ObjectField(Key='scriptArgument', StringValue=str(start)),
                 ObjectField(Key='scriptArgument', StringValue=str(end)),
                 ObjectField(Key='scriptArgument', StringValue=str(batch)),
+                ObjectField(Key='scriptArgument', StringValue=get_output_file_name('blocks', start, end)),
+                ObjectField(Key='scriptArgument', StringValue=get_output_file_name('transactions', start, end)),
+                ObjectField(Key='scriptArgument', StringValue=get_output_file_name('erc20_transfers', start, end)),
                 ObjectField(Key='workerGroup', StringValue='ethereum-etl'),
                 ObjectField(Key='output', RefValue='S3OutputLocation'),
                 ObjectField(Key='stage', StringValue='true')

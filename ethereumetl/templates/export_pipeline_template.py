@@ -35,10 +35,10 @@ def generate_export_pipeline_template(output):
         Description="Shell command that will be executed on workers",
         Type="String",
         Default="cd /home/ec2-user/ethereum-etl && IPC_PATH=/home/ec2-user/.ethereum/geth.ipc && "
-                "python3 export_blocks_and_transactions.py -s $1 -e $2 -b $3 --ipc-path $IPC_PATH -w 1 "
-                "--blocks-output ${OUTPUT1_STAGING_DIR}${4} --transactions-output ${OUTPUT1_STAGING_DIR}${5} && "
-                "python3 export_erc20_transfers.py -s $1 -e $2 -b $3 --ipc-path $IPC_PATH -w 1 "
-                "--output ${OUTPUT1_STAGING_DIR}${6}"
+                "python3 export_blocks_and_transactions.py -s $1 -e $2 --ipc-path $IPC_PATH -w 1 "
+                "--blocks-output ${OUTPUT1_STAGING_DIR}${3} --transactions-output ${OUTPUT1_STAGING_DIR}${4} && "
+                "python3 export_erc20_transfers.py -s $1 -e $2 --ipc-path $IPC_PATH -w 1 "
+                "--output ${OUTPUT1_STAGING_DIR}${5}"
     ))
 
     t.add_resource(Pipeline(
@@ -72,14 +72,13 @@ def generate_export_pipeline_template(output):
             ]
         )] +
         [PipelineObject(
-            Id='ExportActivity_{}_{}_{}'.format(start, end, batch),
-            Name='ExportActivity_{}_{}_{}'.format(start, end, batch),
+            Id='ExportActivity_{}_{}'.format(start, end),
+            Name='ExportActivity_{}_{}'.format(start, end),
             Fields=[
                 ObjectField(Key='type', StringValue='ShellCommandActivity'),
                 ObjectField(Key='command', StringValue='#{myShellCmd}'),
                 ObjectField(Key='scriptArgument', StringValue=str(start)),
                 ObjectField(Key='scriptArgument', StringValue=str(end)),
-                ObjectField(Key='scriptArgument', StringValue=str(batch)),
                 ObjectField(Key='scriptArgument', StringValue=get_output_file_name('blocks', start, end)),
                 ObjectField(Key='scriptArgument', StringValue=get_output_file_name('transactions', start, end)),
                 ObjectField(Key='scriptArgument', StringValue=get_output_file_name('erc20_transfers', start, end)),
@@ -88,7 +87,7 @@ def generate_export_pipeline_template(output):
                 ObjectField(Key='stage', StringValue='true')
 
             ]
-        ) for start, end, batch in EXPORT_JOBS] +
+        ) for start, end in EXPORT_JOBS] +
         [PipelineObject(
             Id='S3OutputLocation',
             Name='S3OutputLocation',

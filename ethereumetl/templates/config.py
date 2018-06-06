@@ -1,9 +1,11 @@
 from ethereumetl.utils import split_to_batches
 
-# The first million blocks are in a single partition
-# The next 3 million blocks are in 100k partitions
-# The next 1 million blocks are in 10k partitions
-# Note that there is a limit in Data Pipeline on the number of objects, which can be increased in Support Center
+# The below partitioning tries to make each partition of equal size.
+# The first million blocks are in a single partition.
+# The next 3 million blocks are in 100k partitions.
+# The next 1 million blocks are in 10k partitions.
+# Note that there is a limit in Data Pipeline on the number of objects, which can be
+# increased in the Support Center
 # https://docs.aws.amazon.com/datapipeline/latest/DeveloperGuide/dp-limits.html
 EXPORT_JOBS = [(0, 999999)] + \
               [(start, end) for start, end in split_to_batches(1000000, 1999999, 1000000)] + \

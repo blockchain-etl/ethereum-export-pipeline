@@ -5,11 +5,12 @@ from troposphere.datapipeline import Pipeline, PipelineTag, PipelineObject, Obje
 from ethereumetl.templates.config import EXPORT_JOBS
 
 
-def get_output_file_name(base_file_name, start_block, end_block):
+def build_output_file_path(base_file_name, start_block, end_block):
     padded_start_block = str(start_block).rjust(8, '0')
     padded_end_block = str(end_block).rjust(8, '0')
-    return '/start_block={}/end_block={}/{}_{}_{}.csv'.format(
-        padded_start_block, padded_end_block, base_file_name, padded_start_block, padded_end_block
+    return '/{}/start_block={}/end_block={}/{}_{}_{}.csv'.format(
+        base_file_name, padded_start_block, padded_end_block,
+        base_file_name, padded_start_block, padded_end_block
     )
 
 
@@ -79,9 +80,9 @@ def generate_export_pipeline_template(output):
                 ObjectField(Key='command', StringValue='#{myShellCmd}'),
                 ObjectField(Key='scriptArgument', StringValue=str(start)),
                 ObjectField(Key='scriptArgument', StringValue=str(end)),
-                ObjectField(Key='scriptArgument', StringValue=get_output_file_name('blocks', start, end)),
-                ObjectField(Key='scriptArgument', StringValue=get_output_file_name('transactions', start, end)),
-                ObjectField(Key='scriptArgument', StringValue=get_output_file_name('erc20_transfers', start, end)),
+                ObjectField(Key='scriptArgument', StringValue=build_output_file_path('blocks', start, end)),
+                ObjectField(Key='scriptArgument', StringValue=build_output_file_path('transactions', start, end)),
+                ObjectField(Key='scriptArgument', StringValue=build_output_file_path('erc20_transfers', start, end)),
                 ObjectField(Key='workerGroup', StringValue='ethereum-etl'),
                 ObjectField(Key='maximumRetries', StringValue='5'),
                 ObjectField(Key='output', RefValue='S3OutputLocation'),

@@ -55,7 +55,7 @@ def generate_export_pipeline_template(output):
             ]),
             ParameterObject(Id='myShellCmd', Attributes=[
                 ParameterObjectAttribute(Key='type', StringValue='String'),
-                ParameterObjectAttribute(Key='description', StringValue='S3 bucket'),
+                ParameterObjectAttribute(Key='description', StringValue='Shell command that will be run on workers'),
                 ParameterObjectAttribute(Key='default', StringValue=Ref(Command)),
             ])
         ],

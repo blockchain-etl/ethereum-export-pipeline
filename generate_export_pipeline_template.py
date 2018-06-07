@@ -1,5 +1,6 @@
 import argparse
 
+from config import EXPORT_PARTITIONS
 from ethereumetl.templates.export_pipeline_template import generate_export_pipeline_template
 
 parser = argparse.ArgumentParser(description='Generate export pipeline template.')
@@ -8,4 +9,4 @@ parser.add_argument('--output', default='export_pipeline.template', type=str,
 
 args = parser.parse_args()
 
-generate_export_pipeline_template(args.output)
+generate_export_pipeline_template(EXPORT_PARTITIONS, args.output)

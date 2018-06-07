@@ -2,8 +2,6 @@ from troposphere import Template, Parameter, Ref
 from troposphere.datapipeline import Pipeline, PipelineTag, PipelineObject, ObjectField, ParameterObject, \
     ParameterObjectAttribute
 
-from ethereumetl.templates.config import EXPORT_JOBS
-
 
 def build_output_file_path(base_file_name, start_block, end_block):
     padded_start_block = str(start_block).rjust(8, '0')
@@ -14,7 +12,8 @@ def build_output_file_path(base_file_name, start_block, end_block):
     )
 
 
-def generate_export_pipeline_template(output):
+def generate_export_pipeline_template(export_partitions, output):
+    """export_partitions is a list of tuples for start and end blocks"""
     template = Template()
 
     # CloudFormation version
@@ -90,7 +89,7 @@ def generate_export_pipeline_template(output):
                 ObjectField(Key='stage', StringValue='true')
 
             ]
-        ) for start, end in EXPORT_JOBS] +
+        ) for start, end in export_partitions] +
         [PipelineObject(
             Id='S3OutputLocation',
             Name='S3OutputLocation',

@@ -8,7 +8,7 @@ from ethereumetl.utils import split_to_batches
 # increased in the Support Center
 # https://docs.aws.amazon.com/datapipeline/latest/DeveloperGuide/dp-limits.html
 EXPORT_PARTITIONS = [(0, 999999)] + \
-                    [(start, end) for start, end in split_to_batches(1000000, 1999999, 1000000)] + \
-                    [(start, end) for start, end in split_to_batches(2000000, 2999999, 1000000)] + \
-                    [(start, end) for start, end in split_to_batches(3000000, 3999999, 1000000)] + \
+                    [(start, end) for start, end in split_to_batches(1000000, 1999999, 100000)] + \
+                    [(start, end) for start, end in split_to_batches(2000000, 2999999, 100000)] + \
+                    [(start, end) for start, end in split_to_batches(3000000, 3999999, 100000)] + \
                     [(start, end) for start, end in split_to_batches(4000000, 4999999, 10000)]

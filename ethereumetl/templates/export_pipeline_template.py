@@ -15,23 +15,24 @@ def build_output_file_path(base_file_name, start_block, end_block):
 
 
 def generate_export_pipeline_template(output):
-    t = Template()
+    template = Template()
 
     # CloudFormation version
-    t.add_version('2010-09-09')
+    template.add_version('2010-09-09')
 
-    t.add_description('Ethereum ETL Export CloudFormation Stack')
+    template.add_description('Ethereum ETL Export CloudFormation Stack')
 
     # Parameters
 
-    S3Bucket = t.add_parameter(Parameter(
+    S3Bucket = template.add_parameter(Parameter(
         "S3Bucket",
         Description="S3 bucket where CSV files will be uploaded",
         Type="String",
         Default="example.com"
     ))
 
-    Command = t.add_parameter(Parameter(
+    # https://docs.aws.amazon.com/datapipeline/latest/DeveloperGuide/dp-object-shellcommandactivity.html
+    Command = template.add_parameter(Parameter(
         "Command",
         Description="Shell command that will be executed on workers",
         Type="String",
@@ -42,7 +43,7 @@ def generate_export_pipeline_template(output):
                 "--output ${OUTPUT1_STAGING_DIR}${5}"
     ))
 
-    t.add_resource(Pipeline(
+    template.add_resource(Pipeline(
         "EthereumETLPipeline",
         Name="EthereumETLPipeline",
         Description="Ethereum ETL Export Pipeline",
@@ -68,7 +69,7 @@ def generate_export_pipeline_template(output):
                 ObjectField(Key='failureAndRerunMode', StringValue='cascade'),
                 ObjectField(Key='scheduleType', StringValue='ondemand'),
                 ObjectField(Key='role', StringValue='DataPipelineDefaultRole'),
-                ObjectField(Key='pipelineLogUri', StringValue='s3://#{myS3Bucket}/'),
+                ObjectField(Key='pipelineLogUri', StringValue='s3://#{myS3Bucket}/data-pipeline-logs/'),
 
             ]
         )] +
@@ -104,4 +105,4 @@ def generate_export_pipeline_template(output):
     # Write json template to file
 
     with open(output, 'w+') as output_file:
-        output_file.write(t.to_json())
+        output_file.write(template.to_json())

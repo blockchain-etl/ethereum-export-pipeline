@@ -14,10 +14,10 @@ spark = glueContext.spark_session
 job = Job(glueContext)
 job.init(args['JOB_NAME'], args)
 ## @type: DataSource
-## @args: [database = "ethereum-etl", table_name = "transactions", transformation_ctx = "data_source"]
+## @args: [database = "ethereumetl", table_name = "transactions", transformation_ctx = "data_source"]
 ## @return: data_source
 ## @inputs: []
-data_source = glueContext.create_dynamic_frame.from_catalog(database="ethereum-etl", table_name="blocks",
+data_source = glueContext.create_dynamic_frame.from_catalog(database="ethereumetl", table_name="blocks",
                                                             transformation_ctx="data_source")
 ## @type: ApplyMapping
 ## @args: [mapping = [("start_block", "string", "start_block", "string"),("end_block", "string", "end_block", "string"),("tx_hash", "string", "tx_hash", "string"), ("tx_nonce", "long", "tx_nonce", "long"), ("tx_block_hash", "string", "tx_block_hash", "string"), ("tx_block_number", "long", "tx_block_number", "long"), ("tx_index", "long", "tx_index", "long"), ("tx_from", "string", "tx_from", "string"), ("tx_to", "string", "tx_to", "string"), ("tx_value", "long", "tx_value", "long"), ("tx_gas", "long", "tx_gas", "long"), ("tx_gas_price", "long", "tx_gas_price", "long"), ("tx_input", "string", "tx_input", "string")], transformation_ctx = "mapped_frame"]
@@ -49,12 +49,12 @@ resolve_choice_frame = ResolveChoice.apply(frame=mapped_frame, choice="make_stru
 ## @inputs: [frame = resolve_choice_frame]
 drop_null_fields_frame = DropNullFields.apply(frame=resolve_choice_frame, transformation_ctx="drop_null_fields_frame")
 ## @type: DataSink
-## @args: [connection_type = "s3", connection_options = {"path": "s3://<your_bucket>/ethereum-etl/parquet/blocks"}, format = "parquet", transformation_ctx = "data_sink"]
+## @args: [connection_type = "s3", connection_options = {"path": "s3://<your_bucket>/ethereumetl/parquet/blocks"}, format = "parquet", transformation_ctx = "data_sink"]
 ## @return: data_sink
 ## @inputs: [frame = drop_null_fields_frame]
 data_sink = glueContext.write_dynamic_frame.from_options(frame=drop_null_fields_frame, connection_type="s3",
                                                          connection_options={
-                                                             "path": "s3://<your_bucket>/ethereum-etl/parquet/blocks",
+                                                             "path": "s3://<your_bucket>/ethereumetl/parquet/blocks",
                                                              "partitionKeys": ["start_block", "end_block"]},
                                                          format="parquet", transformation_ctx="data_sink")
 job.commit()

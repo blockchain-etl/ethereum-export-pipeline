@@ -95,7 +95,7 @@ def generate_export_pipeline_template(export_partitions, output):
             Name='S3OutputLocation',
             Fields=[
                 ObjectField(Key='type', StringValue='S3DataNode'),
-                ObjectField(Key='directoryPath', StringValue='s3://#{myS3Bucket}/ethereum-etl/export-pipeline')
+                ObjectField(Key='directoryPath', StringValue='s3://#{myS3Bucket}/ethereum-etl/export')
 
             ]
         )]

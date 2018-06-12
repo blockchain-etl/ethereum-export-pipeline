@@ -33,7 +33,7 @@ mapped_frame = ApplyMapping.apply(frame=data_source, mappings=[
     ("tx_index", "long", "tx_index", "long"),
     ("tx_from", "string", "tx_from", "string"),
     ("tx_to", "string", "tx_to", "string"),
-    ("tx_value", "long", "tx_value", "long"),
+    ("tx_value", "string", "tx_value", "decimal(38,0)"),
     ("tx_gas", "long", "tx_gas", "long"),
     ("tx_gas_price", "long", "tx_gas_price", "long"),
     ("tx_input", "string", "tx_input", "string")],

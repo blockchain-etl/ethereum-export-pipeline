@@ -29,7 +29,7 @@ mapped_frame = ApplyMapping.apply(frame=data_source, mappings=[
     ("erc20_token", "string", "erc20_token", "string"),
     ("erc20_from", "string", "erc20_from", "string"),
     ("erc20_to", "string", "erc20_to", "string"),
-    ("erc20_value", "long", "erc20_value", "long"),
+    ("erc20_value", "string", "erc20_value", "decimal(38,0)"),
     ("erc20_tx_hash", "string", "erc20_tx_hash", "string"),
     ("erc20_log_index", "long", "erc20_log_index", "long"),
     ("erc20_block_number", "long", "erc20_block_number", "long")],

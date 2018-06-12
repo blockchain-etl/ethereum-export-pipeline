@@ -14,35 +14,43 @@ spark = glueContext.spark_session
 job = Job(glueContext)
 job.init(args['JOB_NAME'], args)
 ## @type: DataSource
-## @args: [database = "ethereumetl", table_name = "transactions", transformation_ctx = "data_source"]
+## @args: [database = "ethereumetl", table_name = "blocks", transformation_ctx = "data_source"]
 ## @return: data_source
 ## @inputs: []
 data_source = glueContext.create_dynamic_frame.from_catalog(database="ethereumetl", table_name="blocks",
                                                             transformation_ctx="data_source")
 ## @type: ApplyMapping
-## @args: [mapping = [("start_block", "string", "start_block", "string"),("end_block", "string", "end_block", "string"),("tx_hash", "string", "tx_hash", "string"), ("tx_nonce", "long", "tx_nonce", "long"), ("tx_block_hash", "string", "tx_block_hash", "string"), ("tx_block_number", "long", "tx_block_number", "long"), ("tx_index", "long", "tx_index", "long"), ("tx_from", "string", "tx_from", "string"), ("tx_to", "string", "tx_to", "string"), ("tx_value", "long", "tx_value", "long"), ("tx_gas", "long", "tx_gas", "long"), ("tx_gas_price", "long", "tx_gas_price", "long"), ("tx_input", "string", "tx_input", "string")], transformation_ctx = "mapped_frame"]
+## @args: [mapping = [("block_number", "long", "block_number", "long"), ("block_hash", "string", "block_hash", "string"), ("block_parent_hash", "string", "block_parent_hash", "string"), ("block_nonce", "string", "block_nonce", "string"), ("block_sha3_uncles", "string", "block_sha3_uncles", "string"), ("block_logs_bloom", "string", "block_logs_bloom", "string"), ("block_transactions_root", "string", "block_transactions_root", "string"), ("block_state_root", "string", "block_state_root", "string"), ("block_miner", "string", "block_miner", "string"), ("block_difficulty", "long", "block_difficulty", "long"), ("block_total_difficulty", "long", "block_total_difficulty", "long"), ("block_size", "long", "block_size", "long"), ("block_extra_data", "string", "block_extra_data", "string"), ("block_gas_limit", "long", "block_gas_limit", "long"), ("block_gas_used", "long", "block_gas_used", "long"), ("block_timestamp", "long", "block_timestamp", "long"), ("block_transaction_count", "long", "block_transaction_count", "long")], transformation_ctx = "applymapping1"]
 ## @return: mapped_frame
 ## @inputs: [frame = data_source]
 mapped_frame = ApplyMapping.apply(frame=data_source, mappings=[
     ("start_block", "string", "start_block", "string"),
     ("end_block", "string", "end_block", "string"),
-    ("tx_hash", "string", "tx_hash", "string"),
-    ("tx_nonce", "long", "tx_nonce", "long"),
-    ("tx_block_hash", "string", "tx_block_hash", "string"),
-    ("tx_block_number", "long", "tx_block_number", "long"),
-    ("tx_index", "long", "tx_index", "long"),
-    ("tx_from", "string", "tx_from", "string"),
-    ("tx_to", "string", "tx_to", "string"),
-    ("tx_value", "long", "tx_value", "long"),
-    ("tx_gas", "long", "tx_gas", "long"),
-    ("tx_gas_price", "long", "tx_gas_price", "long"),
-    ("tx_input", "string", "tx_input", "string")],
-                                   transformation_ctx="mapped_frame")
+    ("block_number", "long", "block_number", "long"),
+    ("block_hash", "string", "block_hash", "string"),
+    ("block_parent_hash", "string", "block_parent_hash", "string"),
+    ("block_nonce", "string", "block_nonce", "string"),
+    ("block_sha3_uncles", "string", "block_sha3_uncles", "string"),
+    ("block_logs_bloom", "string", "block_logs_bloom", "string"),
+    ("block_transactions_root", "string", "block_transactions_root", "string"),
+    ("block_state_root", "string", "block_state_root", "string"),
+    ("block_miner", "string", "block_miner", "string"),
+    ("block_difficulty", "long", "block_difficulty", "long"),
+    ("block_total_difficulty", "long", "block_total_difficulty", "long"),
+    ("block_size", "long", "block_size", "long"),
+    ("block_extra_data", "string", "block_extra_data", "string"),
+    ("block_gas_limit", "long", "block_gas_limit", "long"),
+    ("block_gas_used", "long", "block_gas_used", "long"),
+    ("block_timestamp", "long", "block_timestamp", "long"),
+    ("block_transaction_count", "long", "block_transaction_count", "long")],
+                                  transformation_ctx="mapped_frame")
+
 ## @type: ResolveChoice
 ## @args: [choice = "make_struct", transformation_ctx = "resolve_choice_frame"]
 ## @return: resolve_choice_frame
 ## @inputs: [frame = mapped_frame]
-resolve_choice_frame = ResolveChoice.apply(frame=mapped_frame, choice="make_struct", transformation_ctx="resolve_choice_frame")
+resolve_choice_frame = ResolveChoice.apply(frame=mapped_frame, choice="make_struct",
+                                           transformation_ctx="resolve_choice_frame")
 ## @type: DropNullFields
 ## @args: [transformation_ctx = "drop_null_fields_frame"]
 ## @return: drop_null_fields_frame

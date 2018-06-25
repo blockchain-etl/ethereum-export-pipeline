@@ -12,3 +12,11 @@ EXPORT_PARTITIONS = [(0, 999999)] + \
                     [(start, end) for start, end in split_to_batches(2000000, 2999999, 100000)] + \
                     [(start, end) for start, end in split_to_batches(3000000, 3999999, 100000)] + \
                     [(start, end) for start, end in split_to_batches(4000000, 4999999, 10000)]
+
+DEFAULT_COMMAND = "cd /home/ec2-user/ethereum-etl && IPC_PATH=/home/ec2-user/.ethereum/geth.ipc && "
+"python3 export_blocks_and_transactions.py -s $1 -e $2 --ipc-path $IPC_PATH -w 1 "
+"--blocks-output ${OUTPUT1_STAGING_DIR}${3} --transactions-output ${OUTPUT1_STAGING_DIR}${4} && "
+"python3 export_erc20_transfers.py -s $1 -e $2 --ipc-path $IPC_PATH -w 1 "
+"--output ${OUTPUT1_STAGING_DIR}${5}"
+
+DEFAULT_BUCKET = "example.com"

@@ -12,7 +12,7 @@ def build_output_file_path(base_file_name, start_block, end_block):
     )
 
 
-def generate_export_pipeline_template(export_partitions, output):
+def generate_export_pipeline_template(export_partitions, default_bucket, default_command, output):
     """export_partitions is a list of tuples for start and end blocks"""
     template = Template()
 
@@ -27,7 +27,7 @@ def generate_export_pipeline_template(export_partitions, output):
         "S3Bucket",
         Description="S3 bucket where CSV files will be uploaded",
         Type="String",
-        Default="example.com"
+        Default=default_bucket
     ))
 
     # https://docs.aws.amazon.com/datapipeline/latest/DeveloperGuide/dp-object-shellcommandactivity.html
@@ -35,11 +35,7 @@ def generate_export_pipeline_template(export_partitions, output):
         "Command",
         Description="Shell command that will be executed on workers",
         Type="String",
-        Default="cd /home/ec2-user/ethereum-etl && IPC_PATH=/home/ec2-user/.ethereum/geth.ipc && "
-                "python3 export_blocks_and_transactions.py -s $1 -e $2 --ipc-path $IPC_PATH -w 1 "
-                "--blocks-output ${OUTPUT1_STAGING_DIR}${3} --transactions-output ${OUTPUT1_STAGING_DIR}${4} && "
-                "python3 export_erc20_transfers.py -s $1 -e $2 --ipc-path $IPC_PATH -w 1 "
-                "--output ${OUTPUT1_STAGING_DIR}${5}"
+        Default=default_command
     ))
 
     template.add_resource(Pipeline(

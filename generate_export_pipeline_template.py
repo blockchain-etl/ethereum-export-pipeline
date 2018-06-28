@@ -1,6 +1,6 @@
 import argparse
 
-from config import EXPORT_PARTITIONS, DEFAULT_BUCKET, DEFAULT_COMMAND
+from config import EXPORT_PARTITIONS, DEFAULT_BUCKET, DEFAULT_COMMAND, ADD_TRANSACTIONS_INPUT
 from ethereumetl.templates.export_pipeline_template import generate_export_pipeline_template
 
 parser = argparse.ArgumentParser(description='Generate export pipeline template.')
@@ -14,4 +14,4 @@ generate_export_pipeline_template(
     default_bucket=DEFAULT_BUCKET,
     default_command=DEFAULT_COMMAND,
     output=args.output,
-    add_input=True)
+    add_transactions_input=ADD_TRANSACTIONS_INPUT)

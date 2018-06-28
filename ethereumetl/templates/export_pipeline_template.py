@@ -11,8 +11,11 @@ def build_output_file_path(base_file_name, start_block, end_block):
         base_file_name, padded_start_block, padded_end_block
     )
 
+def build_s3_input_name(start_block, end_block):
+    return 'S3InputLocation_{}_{}'.format(start_block, end_block)
 
-def generate_export_pipeline_template(export_partitions, default_bucket, default_command, output, add_input=False):
+def generate_export_pipeline_template(export_partitions, default_bucket, default_command, output,
+                                      add_transactions_input=False):
     """export_partitions is a list of tuples for start and end blocks"""
     template = Template()
 
@@ -90,19 +93,20 @@ def generate_export_pipeline_template(export_partitions, default_bucket, default
                        ObjectField(Key='output', RefValue='S3OutputLocation'),
                        ObjectField(Key='stage', StringValue='true')
                    ] + ([
-                            ObjectField(Key='input', RefValue='S3InputLocation_{}_{}'.format(start, end))
-                        ] if add_input else [])
+                            ObjectField(Key='input', RefValue=build_s3_input_name(start, end))
+                        ] if add_transactions_input else [])
         ) for start, end in export_partitions] + ([PipelineObject(
-            Id='S3InputLocation_{}_{}'.format(start, end),
-            Name='S3InputLocation_{}_{}'.format(start, end),
+            Id=build_s3_input_name(start, end),
+            Name=build_s3_input_name(start, end),
             Fields=[
                 ObjectField(Key='type', StringValue='S3DataNode'),
                 ObjectField(Key='directoryPath',
                             StringValue='s3://#{myS3Bucket}/ethereumetl/export/transactions/' +
-                                        'start_block={}/end_block={}'.format(str(start).rjust(8, '0'), str(end).rjust(8, '0')))
+                                        'start_block={}/end_block={}'.format(str(start).rjust(8, '0'),
+                                                                             str(end).rjust(8, '0')))
 
             ]
-        ) for start, end in export_partitions] if add_input else []) +
+        ) for start, end in export_partitions] if add_transactions_input else []) +
         [PipelineObject(
             Id='S3OutputLocation',
             Name='S3OutputLocation',
@@ -117,4 +121,4 @@ def generate_export_pipeline_template(export_partitions, default_bucket, default
     # Write json template to file
 
     with open(output, 'w+') as output_file:
-        output_file.write(template.to_json())
+        output_file.write(template.to_json(indent=0, separators=(',', ":")).replace("\n", ""))

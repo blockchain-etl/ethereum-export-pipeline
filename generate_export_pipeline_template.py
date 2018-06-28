@@ -13,4 +13,5 @@ generate_export_pipeline_template(
     export_partitions=EXPORT_PARTITIONS,
     default_bucket=DEFAULT_BUCKET,
     default_command=DEFAULT_COMMAND,
-    output=args.output)
+    output=args.output,
+    add_input=True)

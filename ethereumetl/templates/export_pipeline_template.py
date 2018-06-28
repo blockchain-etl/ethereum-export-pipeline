@@ -12,7 +12,7 @@ def build_output_file_path(base_file_name, start_block, end_block):
     )
 
 
-def generate_export_pipeline_template(export_partitions, default_bucket, default_command, output):
+def generate_export_pipeline_template(export_partitions, default_bucket, default_command, output, add_input=False):
     """export_partitions is a list of tuples for start and end blocks"""
     template = Template()
 
@@ -72,20 +72,37 @@ def generate_export_pipeline_template(export_partitions, default_bucket, default
             Id='ExportActivity_{}_{}'.format(start, end),
             Name='ExportActivity_{}_{}'.format(start, end),
             Fields=[
-                ObjectField(Key='type', StringValue='ShellCommandActivity'),
-                ObjectField(Key='command', StringValue='#{myShellCmd}'),
-                ObjectField(Key='scriptArgument', StringValue=str(start)),
-                ObjectField(Key='scriptArgument', StringValue=str(end)),
-                ObjectField(Key='scriptArgument', StringValue=build_output_file_path('blocks', start, end)),
-                ObjectField(Key='scriptArgument', StringValue=build_output_file_path('transactions', start, end)),
-                ObjectField(Key='scriptArgument', StringValue=build_output_file_path('erc20_transfers', start, end)),
-                ObjectField(Key='workerGroup', StringValue='ethereum-etl'),
-                ObjectField(Key='maximumRetries', StringValue='5'),
-                ObjectField(Key='output', RefValue='S3OutputLocation'),
-                ObjectField(Key='stage', StringValue='true')
+                       ObjectField(Key='type', StringValue='ShellCommandActivity'),
+                       ObjectField(Key='command', StringValue='#{myShellCmd}'),
+                       ObjectField(Key='scriptArgument', StringValue=str(start)),
+                       ObjectField(Key='scriptArgument', StringValue=str(end)),
+                       ObjectField(Key='scriptArgument', StringValue=build_output_file_path('blocks', start, end)),
+                       ObjectField(Key='scriptArgument',
+                                   StringValue=build_output_file_path('transactions', start, end)),
+                       ObjectField(Key='scriptArgument',
+                                   StringValue=build_output_file_path('erc20_transfers', start, end)),
+                       ObjectField(Key='scriptArgument',
+                                   StringValue=build_output_file_path('receipts', start, end)),
+                       ObjectField(Key='scriptArgument',
+                                   StringValue=build_output_file_path('logs', start, end)),
+                       ObjectField(Key='workerGroup', StringValue='ethereum-etl'),
+                       ObjectField(Key='maximumRetries', StringValue='5'),
+                       ObjectField(Key='output', RefValue='S3OutputLocation'),
+                       ObjectField(Key='stage', StringValue='true')
+                   ] + ([
+                            ObjectField(Key='input', RefValue='S3InputLocation_{}_{}'.format(start, end))
+                        ] if add_input else [])
+        ) for start, end in export_partitions] + ([PipelineObject(
+            Id='S3InputLocation_{}_{}'.format(start, end),
+            Name='S3InputLocation_{}_{}'.format(start, end),
+            Fields=[
+                ObjectField(Key='type', StringValue='S3DataNode'),
+                ObjectField(Key='directoryPath',
+                            StringValue='s3://#{myS3Bucket}/ethereumetl/export/transactions/' +
+                                        'start_block={}/end_block={}'.format(str(start).rjust(8, '0'), str(end).rjust(8, '0')))
 
             ]
-        ) for start, end in export_partitions] +
+        ) for start, end in export_partitions] if add_input else []) +
         [PipelineObject(
             Id='S3OutputLocation',
             Name='S3OutputLocation',

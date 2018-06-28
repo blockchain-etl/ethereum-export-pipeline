@@ -13,6 +13,8 @@ EXPORT_PARTITIONS = [(0, 999999)] + \
                     [(start, end) for start, end in split_to_batches(3000000, 3999999, 100000)] + \
                     [(start, end) for start, end in split_to_batches(4000000, 4999999, 10000)]
 
+DEFAULT_BUCKET = "example.com"
+
 EXPORT_BLOCKS_AND_TRANSACTIONS = True
 EXPORT_ERC20_TRANSFERS = False
 EXPORT_RECEIPTS_AND_LOGS = False
@@ -55,4 +57,3 @@ if EXPORT_RECEIPTS_AND_LOGS and not EXPORT_BLOCKS_AND_TRANSACTIONS:
 else:
     ADD_TRANSACTIONS_INPUT = False
 
-DEFAULT_BUCKET = "example.com"

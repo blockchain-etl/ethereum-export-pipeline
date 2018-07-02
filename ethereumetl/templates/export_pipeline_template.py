@@ -60,7 +60,7 @@ def build_shell_command_activity(activity_name, start, end, outputs=None, inputs
 
 # https://docs.aws.amazon.com/datapipeline/latest/DeveloperGuide/dp-object-shellcommandactivity.html
 def generate_export_pipeline_template(
-        export_partitions, default_bucket, output,
+        export_partitions, default_bucket, output, minimize_output=True,
         export_blocks_and_transactions=True,
         export_receipts_and_logs=False,
         export_erc20_transfers=False,
@@ -177,4 +177,8 @@ def generate_export_pipeline_template(
     # Write json template to file
 
     with open(output, 'w+') as output_file:
-        output_file.write(template.to_json(indent=0, separators=(',', ":")).replace("\n", ""))
+        if minimize_output:
+            json_content = template.to_json(indent=0, separators=(',', ":")).replace("\n", "")
+        else:
+            json_content = template.to_json()
+        output_file.write(json_content)

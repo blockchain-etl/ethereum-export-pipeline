@@ -10,7 +10,7 @@ parser.add_argument('--output', default='export_pipeline.template', type=str,
 args = parser.parse_args()
 
 generate_export_pipeline_template(
-    export_partitions=EXPORT_PARTITIONS, default_bucket=DEFAULT_BUCKET, output=args.output,
+    export_partitions=EXPORT_PARTITIONS, default_bucket=DEFAULT_BUCKET, output=args.output, minimize_output=True,
     export_blocks_and_transactions=False,
     export_receipts_and_logs=False,
     export_contracts=True,

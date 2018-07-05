@@ -94,28 +94,28 @@ def generate_export_pipeline_template(
         parameter_objects.append(build_command_parameter_object(
             activity_name='blocks_and_transactions',
             description='Shell command for exporting blocks and transactions',
-            default=' && '.join([SETUP_COMMAND, EXPORT_BLOCKS_AND_TRANSACTIONS_COMMAND])
+            default=EXPORT_BLOCKS_AND_TRANSACTIONS_COMMAND
         ))
 
     if export_receipts_and_logs:
         parameter_objects.append(build_command_parameter_object(
             activity_name='receipts_and_logs',
             description='Shell command for exporting receipts and logs',
-            default=' && '.join([SETUP_COMMAND, EXPORT_RECEIPTS_AND_LOGS_COMMAND])
+            default=EXPORT_RECEIPTS_AND_LOGS_COMMAND
         ))
 
     if export_contracts:
         parameter_objects.append(build_command_parameter_object(
             activity_name='contracts',
             description='Shell command for exporting contracts',
-            default=' && '.join([SETUP_COMMAND, EXPORT_CONTRACTS_COMMAND])
+            default=EXPORT_CONTRACTS_COMMAND
         ))
 
     if export_erc20_transfers:
         parameter_objects.append(build_command_parameter_object(
             activity_name='erc20_transfers',
             description='Shell command for exporting ERC20 transfers',
-            default=' && '.join([SETUP_COMMAND, EXPORT_ERC20_TRANSFERS_COMMAND])
+            default=EXPORT_ERC20_TRANSFERS_COMMAND
         ))
 
     # Pipeline Objects

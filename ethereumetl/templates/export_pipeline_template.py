@@ -2,20 +2,69 @@ from troposphere import Template, Parameter, Ref
 from troposphere.datapipeline import Pipeline, PipelineTag, PipelineObject, ObjectField, ParameterObject, \
     ParameterObjectAttribute
 
+from config import SETUP_COMMAND, EXPORT_BLOCKS_AND_TRANSACTIONS_COMMAND, EXPORT_RECEIPTS_AND_LOGS_COMMAND, \
+    EXPORT_CONTRACTS_COMMAND, EXPORT_ERC20_TRANSFERS_COMMAND
 
-def build_output_file_path(base_file_name, start_block, end_block):
-    padded_start_block = str(start_block).rjust(8, '0')
-    padded_end_block = str(end_block).rjust(8, '0')
-    return '/{}/start_block={}/end_block={}/{}_{}_{}.csv'.format(
-        base_file_name, padded_start_block, padded_end_block,
-        base_file_name, padded_start_block, padded_end_block
+
+def build_command_parameter_object(activity_name, description, default):
+    return ParameterObject(Id='myCmd_{}'.format(activity_name), Attributes=[
+        ParameterObjectAttribute(Key='type', StringValue='String'),
+        ParameterObjectAttribute(Key='description', StringValue=description),
+        ParameterObjectAttribute(Key='default', StringValue=default),
+    ])
+
+
+def build_s3_location(base_file_name, start, end):
+    padded_start = str(start).rjust(8, '0')
+    padded_end = str(end).rjust(8, '0')
+    directory_path = \
+        's3://#{myS3Bucket}/ethereumetl/export' + \
+        '/{}/start_block={}/end_block={}'.format(
+            base_file_name, padded_start, padded_end
+        )
+    return PipelineObject(
+        Id='S3Location_{}_{}_{}'.format(base_file_name, start, end),
+        Name='S3Location_{}_{}_{}'.format(base_file_name, start, end),
+        Fields=[
+            ObjectField(Key='type', StringValue='S3DataNode'),
+            ObjectField(Key='directoryPath', StringValue=directory_path)
+
+        ]
     )
 
-def build_s3_input_name(start_block, end_block):
-    return 'S3InputLocation_{}_{}'.format(start_block, end_block)
 
-def generate_export_pipeline_template(export_partitions, default_bucket, default_command, output,
-                                      add_transactions_input=False):
+def build_shell_command_activity(activity_name, start, end, outputs=None, inputs=None):
+    outputs = outputs if outputs is not None else []
+    inputs = inputs if inputs is not None else []
+    command_variable_name = 'myCmd_{}'.format(activity_name)
+    return PipelineObject(
+        Id='ExportActivity_{}_{}_{}'.format(activity_name, start, end),
+        Name='ExportActivity_{}_{}_{}'.format(activity_name, start, end),
+        Fields=[
+                   ObjectField(Key='type', StringValue='ShellCommandActivity'),
+                   ObjectField(Key='command', StringValue='#{' + command_variable_name + '}'),
+                   ObjectField(Key='scriptArgument', StringValue=str(start)),
+                   ObjectField(Key='scriptArgument', StringValue=str(end)),
+                   ObjectField(Key='workerGroup', StringValue='ethereum-etl'),
+                   ObjectField(Key='maximumRetries', StringValue='5'),
+                   ObjectField(Key='stage', StringValue='true')
+               ] + [
+                   ObjectField(Key='output', RefValue='S3Location_{}_{}_{}'.format(output, start, end))
+                   for output in outputs
+               ] + [
+                   ObjectField(Key='input', RefValue='S3Location_{}_{}_{}'.format(inp, start, end))
+                   for inp in inputs
+               ]
+    )
+
+
+# https://docs.aws.amazon.com/datapipeline/latest/DeveloperGuide/dp-object-shellcommandactivity.html
+def generate_export_pipeline_template(
+        export_partitions, default_bucket, output, minimize_output=True,
+        export_blocks_and_transactions=True,
+        export_receipts_and_logs=False,
+        export_erc20_transfers=False,
+        export_contracts=False):
     """export_partitions is a list of tuples for start and end blocks"""
     template = Template()
 
@@ -33,92 +82,103 @@ def generate_export_pipeline_template(export_partitions, default_bucket, default
         Default=default_bucket
     ))
 
-    # https://docs.aws.amazon.com/datapipeline/latest/DeveloperGuide/dp-object-shellcommandactivity.html
-    Command = template.add_parameter(Parameter(
-        "Command",
-        Description="Shell command that will be executed on workers",
-        Type="String",
-        Default=default_command
-    ))
+    # Parameter Objects
+
+    parameter_objects = [ParameterObject(Id='myS3Bucket', Attributes=[
+        ParameterObjectAttribute(Key='type', StringValue='String'),
+        ParameterObjectAttribute(Key='description', StringValue='S3 bucket'),
+        ParameterObjectAttribute(Key='default', StringValue=Ref(S3Bucket)),
+    ])]
+
+    if export_blocks_and_transactions:
+        parameter_objects.append(build_command_parameter_object(
+            activity_name='blocks_and_transactions',
+            description='Shell command for exporting blocks and transactions',
+            default=EXPORT_BLOCKS_AND_TRANSACTIONS_COMMAND
+        ))
+
+    if export_receipts_and_logs:
+        parameter_objects.append(build_command_parameter_object(
+            activity_name='receipts_and_logs',
+            description='Shell command for exporting receipts and logs',
+            default=EXPORT_RECEIPTS_AND_LOGS_COMMAND
+        ))
+
+    if export_contracts:
+        parameter_objects.append(build_command_parameter_object(
+            activity_name='contracts',
+            description='Shell command for exporting contracts',
+            default=EXPORT_CONTRACTS_COMMAND
+        ))
+
+    if export_erc20_transfers:
+        parameter_objects.append(build_command_parameter_object(
+            activity_name='erc20_transfers',
+            description='Shell command for exporting ERC20 transfers',
+            default=EXPORT_ERC20_TRANSFERS_COMMAND
+        ))
+
+    # Pipeline Objects
+
+    pipeline_objects = [PipelineObject(
+        Id='Default',
+        Name='Default',
+        Fields=[
+            ObjectField(Key='type', StringValue='Default'),
+            ObjectField(Key='failureAndRerunMode', StringValue='cascade'),
+            ObjectField(Key='scheduleType', StringValue='ondemand'),
+            ObjectField(Key='role', StringValue='DataPipelineDefaultRole'),
+            ObjectField(Key='pipelineLogUri', StringValue='s3://#{myS3Bucket}/data-pipeline-logs/'),
+
+        ]
+    )]
+
+    for start, end in export_partitions:
+        if export_blocks_and_transactions:
+            pipeline_objects.append(build_shell_command_activity(
+                'blocks_and_transactions', start, end, outputs=['blocks', 'transactions']))
+
+        if export_blocks_and_transactions:
+            pipeline_objects.append(build_s3_location('blocks', start, end))
+
+        if export_blocks_and_transactions or export_receipts_and_logs:
+            pipeline_objects.append(build_s3_location('transactions', start, end))
+
+        if export_receipts_and_logs:
+            pipeline_objects.append(build_shell_command_activity(
+                'receipts_and_logs', start, end, inputs=['transactions'], outputs=['receipts', 'logs']))
+
+        if export_receipts_and_logs:
+            pipeline_objects.append(build_s3_location('logs', start, end))
+
+        if export_receipts_and_logs or export_contracts:
+            pipeline_objects.append(build_s3_location('receipts', start, end))
+
+        if export_contracts:
+            pipeline_objects.append(build_shell_command_activity(
+                'contracts', start, end, inputs=['receipts'], outputs=['contracts']))
+            pipeline_objects.append(build_s3_location('contracts', start, end))
+
+        # ERC20 transfer pipe
+        if export_erc20_transfers:
+            pipeline_objects.append(build_shell_command_activity(
+                'erc20_transfers', start, end, outputs=['erc20_transfers']))
+            pipeline_objects.append(build_s3_location('erc20_transfers', start, end))
 
     template.add_resource(Pipeline(
         "EthereumETLPipeline",
         Name="EthereumETLPipeline",
         Description="Ethereum ETL Export Pipeline",
         PipelineTags=[PipelineTag(Key='Name', Value='ethereum-etl-pipeline')],
-        ParameterObjects=[
-            ParameterObject(Id='myS3Bucket', Attributes=[
-                ParameterObjectAttribute(Key='type', StringValue='String'),
-                ParameterObjectAttribute(Key='description', StringValue='S3 bucket'),
-                ParameterObjectAttribute(Key='default', StringValue=Ref(S3Bucket)),
-            ]),
-            ParameterObject(Id='myShellCmd', Attributes=[
-                ParameterObjectAttribute(Key='type', StringValue='String'),
-                ParameterObjectAttribute(Key='description', StringValue='Shell command that will be run on workers'),
-                ParameterObjectAttribute(Key='default', StringValue=Ref(Command)),
-            ])
-        ],
-        PipelineObjects=
-        [PipelineObject(
-            Id='Default',
-            Name='Default',
-            Fields=[
-                ObjectField(Key='type', StringValue='Default'),
-                ObjectField(Key='failureAndRerunMode', StringValue='cascade'),
-                ObjectField(Key='scheduleType', StringValue='ondemand'),
-                ObjectField(Key='role', StringValue='DataPipelineDefaultRole'),
-                ObjectField(Key='pipelineLogUri', StringValue='s3://#{myS3Bucket}/data-pipeline-logs/'),
-
-            ]
-        )] +
-        [PipelineObject(
-            Id='ExportActivity_{}_{}'.format(start, end),
-            Name='ExportActivity_{}_{}'.format(start, end),
-            Fields=[
-                       ObjectField(Key='type', StringValue='ShellCommandActivity'),
-                       ObjectField(Key='command', StringValue='#{myShellCmd}'),
-                       ObjectField(Key='scriptArgument', StringValue=str(start)),
-                       ObjectField(Key='scriptArgument', StringValue=str(end)),
-                       ObjectField(Key='scriptArgument', StringValue=build_output_file_path('blocks', start, end)),
-                       ObjectField(Key='scriptArgument',
-                                   StringValue=build_output_file_path('transactions', start, end)),
-                       ObjectField(Key='scriptArgument',
-                                   StringValue=build_output_file_path('erc20_transfers', start, end)),
-                       ObjectField(Key='scriptArgument',
-                                   StringValue=build_output_file_path('receipts', start, end)),
-                       ObjectField(Key='scriptArgument',
-                                   StringValue=build_output_file_path('logs', start, end)),
-                       ObjectField(Key='workerGroup', StringValue='ethereum-etl'),
-                       ObjectField(Key='maximumRetries', StringValue='5'),
-                       ObjectField(Key='output', RefValue='S3OutputLocation'),
-                       ObjectField(Key='stage', StringValue='true')
-                   ] + ([
-                            ObjectField(Key='input', RefValue=build_s3_input_name(start, end))
-                        ] if add_transactions_input else [])
-        ) for start, end in export_partitions] + ([PipelineObject(
-            Id=build_s3_input_name(start, end),
-            Name=build_s3_input_name(start, end),
-            Fields=[
-                ObjectField(Key='type', StringValue='S3DataNode'),
-                ObjectField(Key='directoryPath',
-                            StringValue='s3://#{myS3Bucket}/ethereumetl/export/transactions/' +
-                                        'start_block={}/end_block={}'.format(str(start).rjust(8, '0'),
-                                                                             str(end).rjust(8, '0')))
-
-            ]
-        ) for start, end in export_partitions] if add_transactions_input else []) +
-        [PipelineObject(
-            Id='S3OutputLocation',
-            Name='S3OutputLocation',
-            Fields=[
-                ObjectField(Key='type', StringValue='S3DataNode'),
-                ObjectField(Key='directoryPath', StringValue='s3://#{myS3Bucket}/ethereumetl/export')
-
-            ]
-        )]
+        ParameterObjects=parameter_objects,
+        PipelineObjects=pipeline_objects
     ))
 
     # Write json template to file
 
     with open(output, 'w+') as output_file:
-        output_file.write(template.to_json(indent=0, separators=(',', ":")).replace("\n", ""))
+        if minimize_output:
+            json_content = template.to_json(indent=0, separators=(',', ":")).replace("\n", "")
+        else:
+            json_content = template.to_json()
+        output_file.write(json_content)

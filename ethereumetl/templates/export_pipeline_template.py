@@ -2,7 +2,7 @@ from troposphere import Template, Parameter, Ref
 from troposphere.datapipeline import Pipeline, PipelineTag, PipelineObject, ObjectField, ParameterObject, \
     ParameterObjectAttribute
 
-from config import SETUP_COMMAND, EXPORT_BLOCKS_AND_TRANSACTIONS_COMMAND, EXPORT_RECEIPTS_AND_LOGS_COMMAND, \
+from config import EXPORT_BLOCKS_AND_TRANSACTIONS_COMMAND, EXPORT_RECEIPTS_AND_LOGS_COMMAND, \
     EXPORT_CONTRACTS_COMMAND, EXPORT_ERC20_TRANSFERS_COMMAND
 
 

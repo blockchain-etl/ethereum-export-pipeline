@@ -1,7 +1,7 @@
 import argparse
 
 from config import EXPORT_PARTITIONS, DEFAULT_BUCKET, EXPORT_BLOCKS_AND_TRANSACTIONS, EXPORT_RECEIPTS_AND_LOGS, \
-    EXPORT_CONTRACTS, EXPORT_ERC20_TRANSFERS
+    EXPORT_CONTRACTS, EXPORT_ERC20_TRANSFERS, EXPORT_ERC20_TOKENS
 from ethereumetl.templates.export_pipeline_template import generate_export_pipeline_template
 
 parser = argparse.ArgumentParser(description='Generate export pipeline template.')
@@ -15,4 +15,5 @@ generate_export_pipeline_template(
     export_blocks_and_transactions=EXPORT_BLOCKS_AND_TRANSACTIONS,
     export_receipts_and_logs=EXPORT_RECEIPTS_AND_LOGS,
     export_contracts=EXPORT_CONTRACTS,
-    export_erc20_transfers=EXPORT_ERC20_TRANSFERS)
+    export_erc20_transfers=EXPORT_ERC20_TRANSFERS,
+    export_erc20_tokens=EXPORT_ERC20_TOKENS)

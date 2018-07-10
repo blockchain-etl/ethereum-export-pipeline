@@ -19,6 +19,7 @@ EXPORT_BLOCKS_AND_TRANSACTIONS = True
 EXPORT_RECEIPTS_AND_LOGS = False
 EXPORT_CONTRACTS = False
 EXPORT_ERC20_TRANSFERS = True
+EXPORT_ERC20_TOKENS = True
 
 IS_GETH = False
 
@@ -50,3 +51,9 @@ EXPORT_CONTRACTS_COMMAND = SETUP_COMMAND + ' && ' + \
 EXPORT_ERC20_TRANSFERS_COMMAND = SETUP_COMMAND + ' && ' + \
     "python3 export_erc20_transfers.py -s $1 -e $2 --ipc-path $IPC_PATH -w 1 " + \
     "--output ${OUTPUT1_STAGING_DIR}/erc20_transfers_${PADDED_START}_${PADDED_END}.csv"
+
+EXPORT_ERC20_TOKENS_COMMAND = SETUP_COMMAND + ' && ' + \
+    "python3 extract_csv_column.py -i ${INPUT1_STAGING_DIR}/erc20_transfers_${PADDED_START}_${PADDED_END}.csv -c erc20_token -o - | sort | uniq > ${OUTPUT1_STAGING_DIR}/erc20_token_addresses.csv.temp && " + \
+    "python3 export_erc20_tokens.py --token-addresses ${OUTPUT1_STAGING_DIR}/erc20_token_addresses.csv.temp --ipc-path $IPC_PATH -w 5 " + \
+    "--output ${OUTPUT1_STAGING_DIR}/erc20_tokens_${PADDED_START}_${PADDED_END}.csv && " + \
+    "rm -f ${OUTPUT1_STAGING_DIR}/erc20_token_addresses.csv.temp"

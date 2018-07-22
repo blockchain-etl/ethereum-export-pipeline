@@ -22,12 +22,12 @@ default_dag_args = {
 # Any task you create within the context manager is automatically added to the
 # DAG object.
 with models.DAG(
-        'ethereumetl_export_dag6',
+        'ethereumetl_export_dag',
         # Daily at 1am
         schedule_interval='0 1 * * *',
         default_args=default_dag_args) as dag:
     setup_command = \
-        'echo "WEB3_PROVIDER_URI: $WEB3_PROVIDER_URI" && echo "EXPORT_BUCKET: $EXPORT_BUCKET" && ' \
+        'echo "WEB3_PROVIDER_URI: $WEB3_PROVIDER_URI" && echo "OUTPUT_BUCKET: $OUTPUT_BUCKET" && ' \
         'echo "EXPORT_DATE: $EXPORT_DATE" && echo "ETHEREUMETL_REPO_BRANCH: $ETHEREUMETL_REPO_BRANCH" && ' \
         'find ~ -maxdepth 1 -mmin +10 -type f -name ethereumetl_miniconda_install.lock -delete && ' \
         'if [ ! -e ~/ethereumetl_miniconda_install.lock ] && [ ! -e ~/miniconda/bin/python3 ]; then touch ~/ethereumetl_miniconda_install.lock && ' \
@@ -46,19 +46,28 @@ with models.DAG(
         'echo $BLOCK_RANGE > blocks_meta.txt && ' \
         '$PYTHON3 export_blocks_and_transactions.py -s $START_BLOCK -e $END_BLOCK ' \
         '-p $WEB3_PROVIDER_URI --blocks-output blocks.csv --transactions-output transactions.csv && ' \
-        'gsutil cp blocks.csv gs://$EXPORT_BUCKET/blocks/block_date=$EXPORT_DATE/blocks.csv && ' \
-        'gsutil cp transactions.csv gs://$EXPORT_BUCKET/transactions/block_date=$EXPORT_DATE/transactions.csv && ' \
-        'gsutil cp blocks_meta.txt gs://$EXPORT_BUCKET/blocks_meta/block_date=$EXPORT_DATE/blocks_meta.txt '
+        'gsutil cp blocks.csv gs://$OUTPUT_BUCKET/blocks/block_date=$EXPORT_DATE/blocks.csv && ' \
+        'gsutil cp transactions.csv gs://$OUTPUT_BUCKET/transactions/block_date=$EXPORT_DATE/transactions.csv && ' \
+        'gsutil cp blocks_meta.txt gs://$OUTPUT_BUCKET/blocks_meta/block_date=$EXPORT_DATE/blocks_meta.txt '
 
     export_erc20_transfers_command = \
         setup_command + ' && ' + \
         '$PYTHON3 export_erc20_transfers.py -s $START_BLOCK -e $END_BLOCK ' \
         '-p $WEB3_PROVIDER_URI --output erc20_transfers.csv && ' \
-        'gsutil cp erc20_transfers.csv gs://$EXPORT_BUCKET/erc20_transfers/block_date=$EXPORT_DATE/erc20_transfers.csv '
+        'gsutil cp erc20_transfers.csv gs://$OUTPUT_BUCKET/erc20_transfers/block_date=$EXPORT_DATE/erc20_transfers.csv '
 
-    output_bucket = os.environ.get('EXPORT_BUCKET')
+    export_receipts_and_logs_command = \
+        setup_command + ' && ' + \
+        'gsutil cp gs://$OUTPUT_BUCKET/transactions/block_date=$EXPORT_DATE/transactions.csv transactions.csv && ' \
+        '$PYTHON3 extract_csv_column.py -i transactions.csv -o tx_hashes.csv -c tx_hash && ' \
+        '$PYTHON3 export_receipts_and_logs.py --tx-hashes tx_hashes.csv ' \
+        '-p $WEB3_PROVIDER_URI --receipts-output receipts.csv --logs-output logs.csv && ' \
+        'gsutil cp receipts.csv gs://$OUTPUT_BUCKET/receipts/block_date=$EXPORT_DATE/receipts.csv && ' \
+        'gsutil cp logs.csv gs://$OUTPUT_BUCKET/logs/block_date=$EXPORT_DATE/logs.csv ' \
+    
+    output_bucket = os.environ.get('OUTPUT_BUCKET')
     if output_bucket is None:
-        raise ValueError('You must set EXPORT_BUCKET environment variable')
+        raise ValueError('You must set OUTPUT_BUCKET environment variable')
     web3_provider_uri = os.environ.get('WEB3_PROVIDER_URI', 'https://mainnet.infura.io/')
     ethereumetl_repo_branch = os.environ.get('ETHEREUMETL_REPO_BRANCH', 'master')
 
@@ -67,7 +76,7 @@ with models.DAG(
         'EXPORT_DATE': '{{ macros.ds_add(ds, -1) }}',
         'ETHEREUMETL_REPO_BRANCH': ethereumetl_repo_branch,
         'WEB3_PROVIDER_URI': web3_provider_uri,
-        'EXPORT_BUCKET': output_bucket
+        'OUTPUT_BUCKET': output_bucket
     }
 
     export_blocks_and_transactions_operator = bash_operator.BashOperator(
@@ -81,3 +90,11 @@ with models.DAG(
         bash_command=export_erc20_transfers_command,
         dag=dag,
         env=environment)
+    
+    export_receipts_and_logs_operator = bash_operator.BashOperator(
+        task_id='export_receipts_and_logs',
+        bash_command=export_receipts_and_logs_command,
+        dag=dag,
+        env=environment)
+    export_receipts_and_logs_operator.set_upstream(export_blocks_and_transactions_operator)
+

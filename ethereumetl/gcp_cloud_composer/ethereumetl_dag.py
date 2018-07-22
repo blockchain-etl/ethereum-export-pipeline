@@ -6,11 +6,18 @@ from datetime import datetime, timedelta
 from airflow import models
 from airflow.operators import bash_operator
 
+def get_boolean_env_variable(env_variable_name, default=True):
+    raw_env = os.environ.get(env_variable_name)
+    if raw_env is None or len(raw_env) == 0:
+        return default
+    else:
+        return raw_env.lower() in ['true', 'yes']
+
 # TODO start_date must be in UTC
 default_dag_args = {
     'depends_on_past': False,
     'start_date': datetime(2015, 7, 31),
-    'end_date': datetime(2016, 7, 1),
+    'end_date': datetime(2015, 8, 10),
     'email': ['evge.medvedev@gmail.com'],
     'email_on_failure': True,
     'email_on_retry': True,
@@ -79,22 +86,30 @@ with models.DAG(
         'OUTPUT_BUCKET': output_bucket
     }
 
-    export_blocks_and_transactions_operator = bash_operator.BashOperator(
-        task_id='export_blocks_and_transactions',
-        bash_command=export_blocks_and_transactions_command,
-        dag=dag,
-        env=environment)
+    export_blocks_and_transactions = get_boolean_env_variable('EXPORT_BLOCKS_AND_TRANSACTIONS', True)
+    export_erc20_transfers = get_boolean_env_variable('EXPORT_ERC20_TRANSFERS', True)
+    export_receipts_and_logs = get_boolean_env_variable('EXPORT_RECEIPTS_AND_LOGS', True)
 
-    export_erc20_transfers_operator = bash_operator.BashOperator(
-        task_id='export_erc20_transfers',
-        bash_command=export_erc20_transfers_command,
-        dag=dag,
-        env=environment)
-    
-    export_receipts_and_logs_operator = bash_operator.BashOperator(
-        task_id='export_receipts_and_logs',
-        bash_command=export_receipts_and_logs_command,
-        dag=dag,
-        env=environment)
-    export_receipts_and_logs_operator.set_upstream(export_blocks_and_transactions_operator)
+    if export_blocks_and_transactions:
+        export_blocks_and_transactions_operator = bash_operator.BashOperator(
+            task_id='export_blocks_and_transactions',
+            bash_command=export_blocks_and_transactions_command,
+            dag=dag,
+            env=environment)
+
+    if export_erc20_transfers:
+        export_erc20_transfers_operator = bash_operator.BashOperator(
+            task_id='export_erc20_transfers',
+            bash_command=export_erc20_transfers_command,
+            dag=dag,
+            env=environment)
+
+    if export_receipts_and_logs:
+        export_receipts_and_logs_operator = bash_operator.BashOperator(
+            task_id='export_receipts_and_logs',
+            bash_command=export_receipts_and_logs_command,
+            dag=dag,
+            env=environment)
+        if export_blocks_and_transactions:
+            export_receipts_and_logs_operator.set_upstream(export_blocks_and_transactions_operator)
 

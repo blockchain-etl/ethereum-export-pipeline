@@ -17,7 +17,7 @@ def get_boolean_env_variable(env_variable_name, default=True):
 default_dag_args = {
     'depends_on_past': False,
     'start_date': datetime(2015, 7, 31),
-    'end_date': datetime(2015, 8, 10),
+    'end_date': datetime(2018, 7, 22),
     'email': ['evge.medvedev@gmail.com'],
     'email_on_failure': True,
     'email_on_retry': True,
@@ -37,7 +37,8 @@ with models.DAG(
         'echo "WEB3_PROVIDER_URI: $WEB3_PROVIDER_URI" && echo "OUTPUT_BUCKET: $OUTPUT_BUCKET" && ' \
         'echo "EXPORT_DATE: $EXPORT_DATE" && echo "ETHEREUMETL_REPO_BRANCH: $ETHEREUMETL_REPO_BRANCH" && ' \
         'find ~ -maxdepth 1 -mmin +10 -type f -name ethereumetl_miniconda_install.lock -delete && ' \
-        'if [ ! -e ~/ethereumetl_miniconda_install.lock ] && [ ! -e ~/miniconda/bin/python3 ]; then touch ~/ethereumetl_miniconda_install.lock && ' \
+        'if [ -e ~/ethereumetl_miniconda_install.lock ]; then echo "Miniconda is being installed in another task. Quitting." && exit 1; else echo "No ~/ethereumetl_miniconda_install.lock"; fi && ' \
+        'if [ ! -e ~/miniconda/bin/python3 ]; then touch ~/ethereumetl_miniconda_install.lock && ' \
         'wget https://repo.continuum.io/miniconda/Miniconda3-4.5.4-Linux-x86_64.sh -O miniconda.sh >> miniconda_install.log && ' \
         'bash miniconda.sh -u -b -p ~/miniconda >> miniconda_install.log && ' \
         'rm -f ~/ethereumetl_miniconda_install.lock; else echo "Miniconda already installed"; fi && ' \

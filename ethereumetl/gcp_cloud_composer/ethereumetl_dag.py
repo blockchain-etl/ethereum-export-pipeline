@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 from airflow import models
 from airflow.operators import bash_operator
 
+
 def get_boolean_env_variable(env_variable_name, default=True):
     raw_env = os.environ.get(env_variable_name)
     if raw_env is None or len(raw_env) == 0:
@@ -13,11 +14,11 @@ def get_boolean_env_variable(env_variable_name, default=True):
     else:
         return raw_env.lower() in ['true', 'yes']
 
+
 # TODO start_date must be in UTC
 default_dag_args = {
     'depends_on_past': False,
     'start_date': datetime(2015, 7, 31),
-    'end_date': datetime(2018, 7, 22),
     'email': ['evge.medvedev@gmail.com'],
     'email_on_failure': True,
     'email_on_retry': True,
@@ -71,8 +72,8 @@ with models.DAG(
         '$PYTHON3 export_receipts_and_logs.py --tx-hashes tx_hashes.csv ' \
         '-p $WEB3_PROVIDER_URI --receipts-output receipts.csv --logs-output logs.csv && ' \
         'gsutil cp receipts.csv gs://$OUTPUT_BUCKET/receipts/block_date=$EXPORT_DATE/receipts.csv && ' \
-        'gsutil cp logs.csv gs://$OUTPUT_BUCKET/logs/block_date=$EXPORT_DATE/logs.csv ' \
-    
+        'gsutil cp logs.csv gs://$OUTPUT_BUCKET/logs/block_date=$EXPORT_DATE/logs.csv '
+
     output_bucket = os.environ.get('OUTPUT_BUCKET')
     if output_bucket is None:
         raise ValueError('You must set OUTPUT_BUCKET environment variable')
@@ -113,4 +114,3 @@ with models.DAG(
             env=environment)
         if export_blocks_and_transactions:
             export_receipts_and_logs_operator.set_upstream(export_blocks_and_transactions_operator)
-

@@ -36,7 +36,7 @@ with models.DAG(
         default_args=default_dag_args) as dag:
     setup_command = \
         'echo "WEB3_PROVIDER_URI: $WEB3_PROVIDER_URI" && echo "OUTPUT_BUCKET: $OUTPUT_BUCKET" && ' \
-        'echo "EXPORT_DATE: $EXPORT_DATE" && echo "ETHEREUMETL_REPO_BRANCH: $ETHEREUMETL_REPO_BRANCH" && ' \
+        'echo "EXECUTION_DATE: $EXECUTION_DATE" && echo "ETHEREUMETL_REPO_BRANCH: $ETHEREUMETL_REPO_BRANCH" && ' \
         'find ~ -maxdepth 1 -mmin +10 -type f -name ethereumetl_miniconda_install.lock -delete && ' \
         'if [ -e ~/ethereumetl_miniconda_install.lock ]; then echo "Miniconda is being installed in another task. Quitting." && exit 1; else echo "No ~/ethereumetl_miniconda_install.lock"; fi && ' \
         'if [ ! -e ~/miniconda/bin/python3 ]; then touch ~/ethereumetl_miniconda_install.lock && ' \
@@ -46,7 +46,7 @@ with models.DAG(
         'PYTHON3=~/miniconda/bin/python3 && ' \
         'git clone --branch $ETHEREUMETL_REPO_BRANCH http://github.com/medvedev1088/ethereum-etl && cd ethereum-etl && ' \
         'sudo $PYTHON3 -m pip install -r requirements.txt && ' \
-        'BLOCK_RANGE=$($PYTHON3 get_block_range_for_date.py -d $EXPORT_DATE -p $WEB3_PROVIDER_URI) && ' \
+        'BLOCK_RANGE=$($PYTHON3 get_block_range_for_date.py -d $EXECUTION_DATE -p $WEB3_PROVIDER_URI) && ' \
         'BLOCK_RANGE_ARRAY=(${BLOCK_RANGE//,/ }) && START_BLOCK=${BLOCK_RANGE_ARRAY[0]} && END_BLOCK=${BLOCK_RANGE_ARRAY[1]} && ' \
         'export CLOUDSDK_PYTHON=/usr/local/bin/python'
 
@@ -55,24 +55,24 @@ with models.DAG(
         'echo $BLOCK_RANGE > blocks_meta.txt && ' \
         '$PYTHON3 export_blocks_and_transactions.py -s $START_BLOCK -e $END_BLOCK ' \
         '-p $WEB3_PROVIDER_URI --blocks-output blocks.csv --transactions-output transactions.csv && ' \
-        'gsutil cp blocks.csv gs://$OUTPUT_BUCKET/blocks/block_date=$EXPORT_DATE/blocks.csv && ' \
-        'gsutil cp transactions.csv gs://$OUTPUT_BUCKET/transactions/block_date=$EXPORT_DATE/transactions.csv && ' \
-        'gsutil cp blocks_meta.txt gs://$OUTPUT_BUCKET/blocks_meta/block_date=$EXPORT_DATE/blocks_meta.txt '
+        'gsutil cp blocks.csv gs://$OUTPUT_BUCKET/blocks/block_date=$EXECUTION_DATE/blocks.csv && ' \
+        'gsutil cp transactions.csv gs://$OUTPUT_BUCKET/transactions/block_date=$EXECUTION_DATE/transactions.csv && ' \
+        'gsutil cp blocks_meta.txt gs://$OUTPUT_BUCKET/blocks_meta/block_date=$EXECUTION_DATE/blocks_meta.txt '
 
     export_erc20_transfers_command = \
         setup_command + ' && ' + \
         '$PYTHON3 export_erc20_transfers.py -s $START_BLOCK -e $END_BLOCK ' \
         '-p $WEB3_PROVIDER_URI --output erc20_transfers.csv && ' \
-        'gsutil cp erc20_transfers.csv gs://$OUTPUT_BUCKET/erc20_transfers/block_date=$EXPORT_DATE/erc20_transfers.csv '
+        'gsutil cp erc20_transfers.csv gs://$OUTPUT_BUCKET/erc20_transfers/block_date=$EXECUTION_DATE/erc20_transfers.csv '
 
     export_receipts_and_logs_command = \
         setup_command + ' && ' + \
-        'gsutil cp gs://$OUTPUT_BUCKET/transactions/block_date=$EXPORT_DATE/transactions.csv transactions.csv && ' \
+        'gsutil cp gs://$OUTPUT_BUCKET/transactions/block_date=$EXECUTION_DATE/transactions.csv transactions.csv && ' \
         '$PYTHON3 extract_csv_column.py -i transactions.csv -o tx_hashes.csv -c tx_hash && ' \
         '$PYTHON3 export_receipts_and_logs.py --tx-hashes tx_hashes.csv ' \
         '-p $WEB3_PROVIDER_URI --receipts-output receipts.csv --logs-output logs.csv && ' \
-        'gsutil cp receipts.csv gs://$OUTPUT_BUCKET/receipts/block_date=$EXPORT_DATE/receipts.csv && ' \
-        'gsutil cp logs.csv gs://$OUTPUT_BUCKET/logs/block_date=$EXPORT_DATE/logs.csv '
+        'gsutil cp receipts.csv gs://$OUTPUT_BUCKET/receipts/block_date=$EXECUTION_DATE/receipts.csv && ' \
+        'gsutil cp logs.csv gs://$OUTPUT_BUCKET/logs/block_date=$EXECUTION_DATE/logs.csv '
 
     output_bucket = os.environ.get('OUTPUT_BUCKET')
     if output_bucket is None:
@@ -82,7 +82,6 @@ with models.DAG(
 
     environment = {
         'EXECUTION_DATE': '{{ ds }}',
-        'EXPORT_DATE': '{{ macros.ds_add(ds, -1) }}',
         'ETHEREUMETL_REPO_BRANCH': ethereumetl_repo_branch,
         'WEB3_PROVIDER_URI': web3_provider_uri,
         'OUTPUT_BUCKET': output_bucket

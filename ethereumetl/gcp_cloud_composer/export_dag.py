@@ -23,7 +23,7 @@ default_dag_args = {
     'email_on_failure': True,
     'email_on_retry': True,
     'retries': 5,
-    'retry_delay': timedelta(minutes=1)
+    'retry_delay': timedelta(minutes=5)
 }
 
 # Define a DAG (directed acyclic graph) of tasks.
@@ -38,7 +38,7 @@ with models.DAG(
         'echo "WEB3_PROVIDER_URI: $WEB3_PROVIDER_URI" && echo "OUTPUT_BUCKET: $OUTPUT_BUCKET" && ' \
         'echo "EXECUTION_DATE: $EXECUTION_DATE" && echo "ETHEREUMETL_REPO_BRANCH: $ETHEREUMETL_REPO_BRANCH" && ' \
         'find ~ -maxdepth 1 -mmin +10 -type f -name ethereumetl_miniconda_install.lock -delete && ' \
-        'if [ -e ~/ethereumetl_miniconda_install.lock ]; then echo "Miniconda is being installed in another task. Quitting." && exit 1; else echo "No ~/ethereumetl_miniconda_install.lock"; fi && ' \
+        'if [ -e ~/ethereumetl_miniconda_install.lock ]; then echo "Miniconda is being installed in another task. Quitting." && sleep 60 && exit 1; else echo "No ~/ethereumetl_miniconda_install.lock"; fi && ' \
         'if [ ! -e ~/miniconda/bin/python3 ]; then touch ~/ethereumetl_miniconda_install.lock && ' \
         'wget https://repo.continuum.io/miniconda/Miniconda3-4.5.4-Linux-x86_64.sh -O miniconda.sh >> miniconda_install.log && ' \
         'bash miniconda.sh -u -b -p ~/miniconda >> miniconda_install.log && ' \

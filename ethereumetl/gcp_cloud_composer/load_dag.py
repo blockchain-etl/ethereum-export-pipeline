@@ -37,13 +37,10 @@ with models.DAG(
         default_args=default_dag_args) as dag:
     setup_command = \
         'echo "OUTPUT_BUCKET: $OUTPUT_BUCKET" && ' \
-        'echo "EXECUTION_DATE: $EXECUTION_DATE" && echo "ETHEREUMETL_REPO_BRANCH: $ETHEREUMETL_REPO_BRANCH" && ' \
+        'echo "EXECUTION_DATE: $EXECUTION_DATE" && ' \
+        'echo "ETHEREUMETL_REPO_BRANCH: $ETHEREUMETL_REPO_BRANCH" && ' \
         'git clone --branch $ETHEREUMETL_REPO_BRANCH http://github.com/medvedev1088/ethereum-etl && cd ethereum-etl && ' \
         'export CLOUDSDK_PYTHON=/usr/local/bin/python'
-
-    load_blocks_and_transactions_command = \
-        setup_command + ' && ' + \
-        'bq --location=US load --replace --source_format=CSV --skip_leading_rows=1 ethereum.blocks gs://$OUTPUT_BUCKET/blocks/*.csv ./schemas/gcp/blocks.json '
 
     output_bucket = os.environ.get('OUTPUT_BUCKET')
     if output_bucket is None:
@@ -56,11 +53,21 @@ with models.DAG(
         'OUTPUT_BUCKET': output_bucket
     }
 
-    load_blocks_and_transactions = get_boolean_env_variable('LOAD_BLOCKS_AND_TRANSACTIONS', True)
+    load_blocks = get_boolean_env_variable('LOAD_BLOCKS', True)
+    load_transactions = get_boolean_env_variable('LOAD_TRANSACTIONS', True)
 
-    if load_blocks_and_transactions:
-        load_blocks_and_transactions_operator = bash_operator.BashOperator(
-            task_id='load_blocks_and_transactions',
-            bash_command=load_blocks_and_transactions_command,
+    if load_blocks:
+        load_blocks_operator = bash_operator.BashOperator(
+            task_id='load_blocks',
+            bash_command=setup_command + ' && ' + 'bq --location=US load --replace --source_format=CSV --skip_leading_rows=1 '
+                                                  'ethereum.blocks gs://$OUTPUT_BUCKET/blocks/*.csv ./schemas/gcp/blocks.json ',
+            dag=dag,
+            env=environment)
+
+    if load_transactions:
+        load_transactions_operator = bash_operator.BashOperator(
+            task_id='load_transactions',
+            bash_command=setup_command + ' && ' + 'bq --location=US load --replace --source_format=CSV --skip_leading_rows=1 '
+                                                  'ethereum.transactions gs://$OUTPUT_BUCKET/transactions/*.csv ./schemas/gcp/transactions.json ',
             dag=dag,
             env=environment)

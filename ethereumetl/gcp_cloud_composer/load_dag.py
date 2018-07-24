@@ -36,6 +36,7 @@ with models.DAG(
         schedule_interval='30 1 * * *',
         default_args=default_dag_args) as dag:
     setup_command = \
+        'set -o xtrace && ' \
         'echo "OUTPUT_BUCKET: $OUTPUT_BUCKET" && ' \
         'echo "EXECUTION_DATE: $EXECUTION_DATE" && ' \
         'echo "ETHEREUMETL_REPO_BRANCH: $ETHEREUMETL_REPO_BRANCH" && ' \
@@ -55,6 +56,8 @@ with models.DAG(
 
     load_blocks = get_boolean_env_variable('LOAD_BLOCKS', True)
     load_transactions = get_boolean_env_variable('LOAD_TRANSACTIONS', True)
+    load_receipts = get_boolean_env_variable('LOAD_RECEIPTS', True)
+    load_logs = get_boolean_env_variable('LOAD_LOGS', True)
 
     if load_blocks:
         load_blocks_operator = bash_operator.BashOperator(
@@ -69,5 +72,21 @@ with models.DAG(
             task_id='load_transactions',
             bash_command=setup_command + ' && ' + 'bq --location=US load --replace --source_format=CSV --skip_leading_rows=1 '
                                                   'ethereum.transactions gs://$OUTPUT_BUCKET/transactions/*.csv ./schemas/gcp/transactions.json ',
+            dag=dag,
+            env=environment)
+
+    if load_receipts:
+        load_receipts_operator = bash_operator.BashOperator(
+            task_id='load_receipts',
+            bash_command=setup_command + ' && ' + 'bq --location=US load --replace --source_format=CSV --skip_leading_rows=1 '
+                                                  'ethereum.receipts gs://$OUTPUT_BUCKET/receipts/*.csv ./schemas/gcp/receipts.json ',
+            dag=dag,
+            env=environment)
+
+    if load_logs:
+        load_receipts_operator = bash_operator.BashOperator(
+            task_id='load_logs',
+            bash_command=setup_command + ' && ' + 'bq --location=US load --replace --source_format=CSV --skip_leading_rows=1 '
+                                                  'ethereum.logs gs://$OUTPUT_BUCKET/logs/*.csv ./schemas/gcp/logs.json ',
             dag=dag,
             env=environment)

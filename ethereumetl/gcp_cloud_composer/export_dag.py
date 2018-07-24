@@ -18,7 +18,7 @@ def get_boolean_env_variable(env_variable_name, default=True):
 # TODO start_date must be in UTC
 default_dag_args = {
     'depends_on_past': False,
-    'start_date': datetime(2015, 7, 31),
+    'start_date': datetime(2015, 7, 30),
     'email': ['evge.medvedev@gmail.com'],
     'email_on_failure': True,
     'email_on_retry': True,

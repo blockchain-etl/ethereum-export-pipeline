@@ -34,18 +34,15 @@ with models.DAG(
         # Daily at 1am
         schedule_interval='0 1 * * *',
         default_args=default_dag_args) as dag:
+    # Will get rid of this once Google Cloud Composer supports Python 3
+    install_python3_command = 'cp $DAGS_FOLDER/resources/miniconda.tar . && ' \
+                              'tar xvf miniconda.tar > untar_miniconda.log && ' \
+                              'PYTHON3=$PWD/miniconda/bin/python3'
+
     setup_command = \
-        'echo "WEB3_PROVIDER_URI: $WEB3_PROVIDER_URI" && echo "OUTPUT_BUCKET: $OUTPUT_BUCKET" && ' \
-        'echo "EXECUTION_DATE: $EXECUTION_DATE" && echo "ETHEREUMETL_REPO_BRANCH: $ETHEREUMETL_REPO_BRANCH" && ' \
-        'find ~ -maxdepth 1 -mmin +10 -type f -name ethereumetl_miniconda_install.lock -delete && ' \
-        'if [ -e ~/ethereumetl_miniconda_install.lock ]; then echo "Miniconda is being installed in another task. Quitting." && sleep 60 && exit 1; else echo "No ~/ethereumetl_miniconda_install.lock"; fi && ' \
-        'if [ ! -e ~/miniconda/bin/python3 ]; then touch ~/ethereumetl_miniconda_install.lock && ' \
-        'wget https://repo.continuum.io/miniconda/Miniconda3-4.5.4-Linux-x86_64.sh -O miniconda.sh >> miniconda_install.log && ' \
-        'bash miniconda.sh -u -b -p ~/miniconda >> miniconda_install.log && ' \
-        'rm -f ~/ethereumetl_miniconda_install.lock; else echo "Miniconda already installed"; fi && ' \
-        'PYTHON3=~/miniconda/bin/python3 && ' \
+        'set -o xtrace && ' + install_python3_command + \
+        ' && ' \
         'git clone --branch $ETHEREUMETL_REPO_BRANCH http://github.com/medvedev1088/ethereum-etl && cd ethereum-etl && ' \
-        'sudo $PYTHON3 -m pip install -r requirements.txt && ' \
         'BLOCK_RANGE=$($PYTHON3 get_block_range_for_date.py -d $EXECUTION_DATE -p $WEB3_PROVIDER_URI) && ' \
         'BLOCK_RANGE_ARRAY=(${BLOCK_RANGE//,/ }) && START_BLOCK=${BLOCK_RANGE_ARRAY[0]} && END_BLOCK=${BLOCK_RANGE_ARRAY[1]} && ' \
         'export CLOUDSDK_PYTHON=/usr/local/bin/python'
@@ -74,21 +71,32 @@ with models.DAG(
         'gsutil cp receipts.csv gs://$OUTPUT_BUCKET/receipts/block_date=$EXECUTION_DATE/receipts.csv && ' \
         'gsutil cp logs.csv gs://$OUTPUT_BUCKET/logs/block_date=$EXECUTION_DATE/logs.csv '
 
+    extract_erc20_transfers_command = \
+        setup_command + ' && ' + \
+        'gsutil cp gs://$OUTPUT_BUCKET/logs/block_date=$EXECUTION_DATE/logs.csv logs.csv && ' \
+        '$PYTHON3 extract_erc20_transfers.py --logs logs.csv --output erc20_transfers.csv && ' \
+        'gsutil cp erc20_transfers.csv gs://$OUTPUT_BUCKET/erc20_transfers/block_date=$EXECUTION_DATE/erc20_transfers.csv '
+
     output_bucket = os.environ.get('OUTPUT_BUCKET')
     if output_bucket is None:
         raise ValueError('You must set OUTPUT_BUCKET environment variable')
     web3_provider_uri = os.environ.get('WEB3_PROVIDER_URI', 'https://mainnet.infura.io/')
     ethereumetl_repo_branch = os.environ.get('ETHEREUMETL_REPO_BRANCH', 'master')
+    dags_folder = os.environ.get('DAGS_FOLDER', '/home/airflow/gcs/dags')
 
+    # ds is 1 day behind the date on which the run is scheduled, e.g. if the dag is scheduled to run at
+    # 1am on January 2, ds will be January 1.
     environment = {
         'EXECUTION_DATE': '{{ ds }}',
         'ETHEREUMETL_REPO_BRANCH': ethereumetl_repo_branch,
         'WEB3_PROVIDER_URI': web3_provider_uri,
-        'OUTPUT_BUCKET': output_bucket
+        'OUTPUT_BUCKET': output_bucket,
+        'DAGS_FOLDER': dags_folder
     }
 
     export_blocks_and_transactions = get_boolean_env_variable('EXPORT_BLOCKS_AND_TRANSACTIONS', True)
     export_erc20_transfers = get_boolean_env_variable('EXPORT_ERC20_TRANSFERS', True)
+    extract_erc20_transfers = get_boolean_env_variable('EXTRACT_ERC20_TRANSFERS', True)
     export_receipts_and_logs = get_boolean_env_variable('EXPORT_RECEIPTS_AND_LOGS', True)
 
     if export_blocks_and_transactions:
@@ -113,3 +121,12 @@ with models.DAG(
             env=environment)
         if export_blocks_and_transactions:
             export_receipts_and_logs_operator.set_upstream(export_blocks_and_transactions_operator)
+
+    if extract_erc20_transfers:
+        extract_erc20_transfers_operator = bash_operator.BashOperator(
+            task_id='extract_erc20_transfers',
+            bash_command=extract_erc20_transfers_command,
+            dag=dag,
+            env=environment)
+        if export_receipts_and_logs:
+            extract_erc20_transfers_operator.set_upstream(export_receipts_and_logs_operator)

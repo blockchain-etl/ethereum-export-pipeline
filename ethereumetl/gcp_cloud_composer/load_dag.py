@@ -58,6 +58,7 @@ with models.DAG(
     load_transactions = get_boolean_env_variable('LOAD_TRANSACTIONS', True)
     load_receipts = get_boolean_env_variable('LOAD_RECEIPTS', True)
     load_logs = get_boolean_env_variable('LOAD_LOGS', True)
+    load_transfers = get_boolean_env_variable('LOAD_TRANSFERS', True)
 
     if load_blocks:
         load_blocks_operator = bash_operator.BashOperator(
@@ -88,5 +89,13 @@ with models.DAG(
             task_id='load_logs',
             bash_command=setup_command + ' && ' + 'bq --location=US load --replace --source_format=CSV --skip_leading_rows=1 '
                                                   'ethereum.logs gs://$OUTPUT_BUCKET/logs/*.csv ./schemas/gcp/logs.json ',
+            dag=dag,
+            env=environment)
+
+    if load_transfers:
+        load_transfers_operator = bash_operator.BashOperator(
+            task_id='load_transfers',
+            bash_command=setup_command + ' && ' + 'bq --location=US load --replace --source_format=CSV --skip_leading_rows=1 '
+                                                  'ethereum.erc20_transfers gs://$OUTPUT_BUCKET/erc20_transfers/*.csv ./schemas/gcp/erc20_transfers.json ',
             dag=dag,
             env=environment)

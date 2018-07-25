@@ -67,14 +67,14 @@ with models.DAG(
         'gsutil cp gs://$OUTPUT_BUCKET/transactions/block_date=$EXECUTION_DATE/transactions.csv transactions.csv && ' \
         '$PYTHON3 extract_csv_column.py -i transactions.csv -o tx_hashes.csv -c tx_hash && ' \
         '$PYTHON3 export_receipts_and_logs.py --tx-hashes tx_hashes.csv ' \
-        '-p $WEB3_PROVIDER_URI --receipts-output receipts.csv --logs-output logs.csv && ' \
+        '-p $WEB3_PROVIDER_URI --receipts-output receipts.csv --logs-output logs.json && ' \
         'gsutil cp receipts.csv gs://$OUTPUT_BUCKET/receipts/block_date=$EXECUTION_DATE/receipts.csv && ' \
-        'gsutil cp logs.csv gs://$OUTPUT_BUCKET/logs/block_date=$EXECUTION_DATE/logs.csv '
+        'gsutil cp logs.json gs://$OUTPUT_BUCKET/logs/block_date=$EXECUTION_DATE/logs.json '
 
     extract_erc20_transfers_command = \
         setup_command + ' && ' + \
-        'gsutil cp gs://$OUTPUT_BUCKET/logs/block_date=$EXECUTION_DATE/logs.csv logs.csv && ' \
-        '$PYTHON3 extract_erc20_transfers.py --logs logs.csv --output erc20_transfers.csv && ' \
+        'gsutil cp gs://$OUTPUT_BUCKET/logs/block_date=$EXECUTION_DATE/logs.json logs.json && ' \
+        '$PYTHON3 extract_erc20_transfers.py --logs logs.json --output erc20_transfers.csv && ' \
         'gsutil cp erc20_transfers.csv gs://$OUTPUT_BUCKET/erc20_transfers/block_date=$EXECUTION_DATE/erc20_transfers.csv '
 
     output_bucket = os.environ.get('OUTPUT_BUCKET')

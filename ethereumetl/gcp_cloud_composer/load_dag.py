@@ -87,8 +87,8 @@ with models.DAG(
     if load_logs:
         load_receipts_operator = bash_operator.BashOperator(
             task_id='load_logs',
-            bash_command=setup_command + ' && ' + 'bq --location=US load --replace --source_format=CSV --skip_leading_rows=1 '
-                                                  'ethereum.logs gs://$OUTPUT_BUCKET/logs/*.csv ./schemas/gcp/logs.json ',
+            bash_command=setup_command + ' && ' + 'bq --location=US load --replace --source_format=NEWLINE_DELIMITED_JSON '
+                                                  'ethereum.logs gs://$OUTPUT_BUCKET/logs/*.json ./schemas/gcp/logs.json ',
             dag=dag,
             env=environment)
 

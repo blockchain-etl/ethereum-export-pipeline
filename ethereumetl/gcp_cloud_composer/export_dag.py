@@ -56,12 +56,6 @@ with models.DAG(
         'gsutil cp transactions.csv gs://$OUTPUT_BUCKET/transactions/block_date=$EXECUTION_DATE/transactions.csv && ' \
         'gsutil cp blocks_meta.txt gs://$OUTPUT_BUCKET/blocks_meta/block_date=$EXECUTION_DATE/blocks_meta.txt '
 
-    export_erc20_transfers_command = \
-        setup_command + ' && ' + \
-        '$PYTHON3 export_erc20_transfers.py -s $START_BLOCK -e $END_BLOCK ' \
-        '-p $WEB3_PROVIDER_URI --output erc20_transfers.csv && ' \
-        'gsutil cp erc20_transfers.csv gs://$OUTPUT_BUCKET/erc20_transfers/block_date=$EXECUTION_DATE/erc20_transfers.csv '
-
     export_receipts_and_logs_command = \
         setup_command + ' && ' + \
         'gsutil cp gs://$OUTPUT_BUCKET/transactions/block_date=$EXECUTION_DATE/transactions.csv transactions.csv && ' \
@@ -95,7 +89,6 @@ with models.DAG(
     }
 
     export_blocks_and_transactions = get_boolean_env_variable('EXPORT_BLOCKS_AND_TRANSACTIONS', True)
-    export_erc20_transfers = get_boolean_env_variable('EXPORT_ERC20_TRANSFERS', True)
     extract_erc20_transfers = get_boolean_env_variable('EXTRACT_ERC20_TRANSFERS', True)
     export_receipts_and_logs = get_boolean_env_variable('EXPORT_RECEIPTS_AND_LOGS', True)
 
@@ -106,13 +99,6 @@ with models.DAG(
             dag=dag,
             env=environment)
 
-    if export_erc20_transfers:
-        export_erc20_transfers_operator = bash_operator.BashOperator(
-            task_id='export_erc20_transfers',
-            bash_command=export_erc20_transfers_command,
-            dag=dag,
-            env=environment)
-
     if export_receipts_and_logs:
         export_receipts_and_logs_operator = bash_operator.BashOperator(
             task_id='export_receipts_and_logs',
@@ -120,7 +106,7 @@ with models.DAG(
             dag=dag,
             env=environment)
         if export_blocks_and_transactions:
-            export_receipts_and_logs_operator.set_upstream(export_blocks_and_transactions_operator)
+            export_blocks_and_transactions_operator >> export_receipts_and_logs_operator
 
     if extract_erc20_transfers:
         extract_erc20_transfers_operator = bash_operator.BashOperator(
@@ -129,4 +115,4 @@ with models.DAG(
             dag=dag,
             env=environment)
         if export_receipts_and_logs:
-            extract_erc20_transfers_operator.set_upstream(export_receipts_and_logs_operator)
+            export_receipts_and_logs_operator >> extract_erc20_transfers_operator

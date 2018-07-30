@@ -65,6 +65,14 @@ with models.DAG(
         'gsutil cp receipts.csv gs://$OUTPUT_BUCKET/receipts/block_date=$EXECUTION_DATE/receipts.csv && ' \
         'gsutil cp logs.json gs://$OUTPUT_BUCKET/logs/block_date=$EXECUTION_DATE/logs.json '
 
+    export_contracts_command = \
+        setup_command + ' && ' + \
+        'gsutil cp gs://$OUTPUT_BUCKET/receipts/block_date=$EXECUTION_DATE/receipts.csv receipts.csv && ' \
+        '$PYTHON3 extract_csv_column.py -i receipts.csv -o contract_addresses.csv -c receipt_contract_address && ' \
+        '$PYTHON3 export_contracts.py --contract-addresses contract_addresses.csv ' \
+        '-p $WEB3_PROVIDER_URI --output contracts.json && ' \
+        'gsutil cp contracts.json gs://$OUTPUT_BUCKET/contracts/block_date=$EXECUTION_DATE/contracts.json '
+
     extract_erc20_transfers_command = \
         setup_command + ' && ' + \
         'gsutil cp gs://$OUTPUT_BUCKET/logs/block_date=$EXECUTION_DATE/logs.json logs.json && ' \
@@ -89,8 +97,9 @@ with models.DAG(
     }
 
     export_blocks_and_transactions = get_boolean_env_variable('EXPORT_BLOCKS_AND_TRANSACTIONS', True)
-    extract_erc20_transfers = get_boolean_env_variable('EXTRACT_ERC20_TRANSFERS', True)
     export_receipts_and_logs = get_boolean_env_variable('EXPORT_RECEIPTS_AND_LOGS', True)
+    export_contracts = get_boolean_env_variable('EXPORT_CONTRACTS', True)
+    extract_erc20_transfers = get_boolean_env_variable('EXTRACT_ERC20_TRANSFERS', True)
 
     if export_blocks_and_transactions:
         export_blocks_and_transactions_operator = bash_operator.BashOperator(
@@ -107,6 +116,15 @@ with models.DAG(
             env=environment)
         if export_blocks_and_transactions:
             export_blocks_and_transactions_operator >> export_receipts_and_logs_operator
+
+    if export_contracts:
+        export_contracts_operator = bash_operator.BashOperator(
+            task_id='export_contracts',
+            bash_command=export_contracts_command,
+            dag=dag,
+            env=environment)
+        if export_receipts_and_logs:
+            export_receipts_and_logs_operator >> export_contracts_operator
 
     if extract_erc20_transfers:
         extract_erc20_transfers_operator = bash_operator.BashOperator(

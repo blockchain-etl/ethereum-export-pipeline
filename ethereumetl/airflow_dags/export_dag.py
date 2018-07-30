@@ -97,6 +97,8 @@ with models.DAG(
         'DAGS_FOLDER': dags_folder
     }
 
+    # TODO: Add timeouts
+
     export_blocks_and_transactions = get_boolean_env_variable('EXPORT_BLOCKS_AND_TRANSACTIONS', True)
     export_receipts_and_logs = get_boolean_env_variable('EXPORT_RECEIPTS_AND_LOGS', True)
     export_contracts = get_boolean_env_variable('EXPORT_CONTRACTS', True)

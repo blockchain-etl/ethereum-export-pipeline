@@ -45,6 +45,7 @@ with models.DAG(
         'git clone --branch $ETHEREUMETL_REPO_BRANCH http://github.com/medvedev1088/ethereum-etl && cd ethereum-etl && ' \
         'BLOCK_RANGE=$($PYTHON3 get_block_range_for_date.py -d $EXECUTION_DATE -p $WEB3_PROVIDER_URI) && ' \
         'BLOCK_RANGE_ARRAY=(${BLOCK_RANGE//,/ }) && START_BLOCK=${BLOCK_RANGE_ARRAY[0]} && END_BLOCK=${BLOCK_RANGE_ARRAY[1]} && ' \
+        'EXPORT_LOCATION_URI=gs://$OUTPUT_BUCKET/export && ' \
         'export CLOUDSDK_PYTHON=/usr/local/bin/python'
 
     export_blocks_and_transactions_command = \
@@ -52,32 +53,32 @@ with models.DAG(
         'echo $BLOCK_RANGE > blocks_meta.txt && ' \
         '$PYTHON3 export_blocks_and_transactions.py -s $START_BLOCK -e $END_BLOCK ' \
         '-p $WEB3_PROVIDER_URI --blocks-output blocks.csv --transactions-output transactions.csv && ' \
-        'gsutil cp blocks.csv gs://$OUTPUT_BUCKET/blocks/block_date=$EXECUTION_DATE/blocks.csv && ' \
-        'gsutil cp transactions.csv gs://$OUTPUT_BUCKET/transactions/block_date=$EXECUTION_DATE/transactions.csv && ' \
-        'gsutil cp blocks_meta.txt gs://$OUTPUT_BUCKET/blocks_meta/block_date=$EXECUTION_DATE/blocks_meta.txt '
+        'gsutil cp blocks.csv $EXPORT_LOCATION_URI/blocks/block_date=$EXECUTION_DATE/blocks.csv && ' \
+        'gsutil cp transactions.csv $EXPORT_LOCATION_URI/transactions/block_date=$EXECUTION_DATE/transactions.csv && ' \
+        'gsutil cp blocks_meta.txt $EXPORT_LOCATION_URI/blocks_meta/block_date=$EXECUTION_DATE/blocks_meta.txt '
 
     export_receipts_and_logs_command = \
         setup_command + ' && ' + \
-        'gsutil cp gs://$OUTPUT_BUCKET/transactions/block_date=$EXECUTION_DATE/transactions.csv transactions.csv && ' \
+        'gsutil cp $EXPORT_LOCATION_URI/transactions/block_date=$EXECUTION_DATE/transactions.csv transactions.csv && ' \
         '$PYTHON3 extract_csv_column.py -i transactions.csv -o tx_hashes.csv -c tx_hash && ' \
         '$PYTHON3 export_receipts_and_logs.py --tx-hashes tx_hashes.csv ' \
         '-p $WEB3_PROVIDER_URI --receipts-output receipts.csv --logs-output logs.json && ' \
-        'gsutil cp receipts.csv gs://$OUTPUT_BUCKET/receipts/block_date=$EXECUTION_DATE/receipts.csv && ' \
-        'gsutil cp logs.json gs://$OUTPUT_BUCKET/logs/block_date=$EXECUTION_DATE/logs.json '
+        'gsutil cp receipts.csv $EXPORT_LOCATION_URI/receipts/block_date=$EXECUTION_DATE/receipts.csv && ' \
+        'gsutil cp logs.json $EXPORT_LOCATION_URI/logs/block_date=$EXECUTION_DATE/logs.json '
 
     export_contracts_command = \
         setup_command + ' && ' + \
-        'gsutil cp gs://$OUTPUT_BUCKET/receipts/block_date=$EXECUTION_DATE/receipts.csv receipts.csv && ' \
+        'gsutil cp $EXPORT_LOCATION_URI/receipts/block_date=$EXECUTION_DATE/receipts.csv receipts.csv && ' \
         '$PYTHON3 extract_csv_column.py -i receipts.csv -o contract_addresses.csv -c receipt_contract_address && ' \
         '$PYTHON3 export_contracts.py --contract-addresses contract_addresses.csv ' \
         '-p $WEB3_PROVIDER_URI --output contracts.json && ' \
-        'gsutil cp contracts.json gs://$OUTPUT_BUCKET/contracts/block_date=$EXECUTION_DATE/contracts.json '
+        'gsutil cp contracts.json $EXPORT_LOCATION_URI/contracts/block_date=$EXECUTION_DATE/contracts.json '
 
     extract_erc20_transfers_command = \
         setup_command + ' && ' + \
-        'gsutil cp gs://$OUTPUT_BUCKET/logs/block_date=$EXECUTION_DATE/logs.json logs.json && ' \
+        'gsutil cp $EXPORT_LOCATION_URI/logs/block_date=$EXECUTION_DATE/logs.json logs.json && ' \
         '$PYTHON3 extract_erc20_transfers.py --logs logs.json --output erc20_transfers.csv && ' \
-        'gsutil cp erc20_transfers.csv gs://$OUTPUT_BUCKET/erc20_transfers/block_date=$EXECUTION_DATE/erc20_transfers.csv '
+        'gsutil cp erc20_transfers.csv $EXPORT_LOCATION_URI/erc20_transfers/block_date=$EXECUTION_DATE/erc20_transfers.csv '
 
     output_bucket = os.environ.get('OUTPUT_BUCKET')
     if output_bucket is None:

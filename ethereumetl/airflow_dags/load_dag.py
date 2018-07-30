@@ -40,6 +40,7 @@ with models.DAG(
         'echo "OUTPUT_BUCKET: $OUTPUT_BUCKET" && ' \
         'echo "EXECUTION_DATE: $EXECUTION_DATE" && ' \
         'echo "ETHEREUMETL_REPO_BRANCH: $ETHEREUMETL_REPO_BRANCH" && ' \
+        'EXPORT_LOCATION_URI=gs://$OUTPUT_BUCKET/export && ' \
         'git clone --branch $ETHEREUMETL_REPO_BRANCH http://github.com/medvedev1088/ethereum-etl && cd ethereum-etl && ' \
         'export CLOUDSDK_PYTHON=/usr/local/bin/python'
 
@@ -65,7 +66,7 @@ with models.DAG(
         load_blocks_operator = bash_operator.BashOperator(
             task_id='load_blocks',
             bash_command=setup_command + ' && ' + 'bq --location=US load --replace --source_format=CSV --skip_leading_rows=1 '
-                                                  'ethereum.blocks gs://$OUTPUT_BUCKET/blocks/*.csv ./schemas/gcp/blocks.json ',
+                                                  'ethereum.blocks $EXPORT_LOCATION_URI/blocks/*.csv ./schemas/gcp/blocks.json ',
             dag=dag,
             env=environment)
 
@@ -73,7 +74,7 @@ with models.DAG(
         load_transactions_operator = bash_operator.BashOperator(
             task_id='load_transactions',
             bash_command=setup_command + ' && ' + 'bq --location=US load --replace --source_format=CSV --skip_leading_rows=1 '
-                                                  'ethereum.transactions gs://$OUTPUT_BUCKET/transactions/*.csv ./schemas/gcp/transactions.json ',
+                                                  'ethereum.transactions $EXPORT_LOCATION_URI/transactions/*.csv ./schemas/gcp/transactions.json ',
             dag=dag,
             env=environment)
 
@@ -81,7 +82,7 @@ with models.DAG(
         load_receipts_operator = bash_operator.BashOperator(
             task_id='load_receipts',
             bash_command=setup_command + ' && ' + 'bq --location=US load --replace --source_format=CSV --skip_leading_rows=1 '
-                                                  'ethereum.receipts gs://$OUTPUT_BUCKET/receipts/*.csv ./schemas/gcp/receipts.json ',
+                                                  'ethereum.receipts $EXPORT_LOCATION_URI/receipts/*.csv ./schemas/gcp/receipts.json ',
             dag=dag,
             env=environment)
 
@@ -89,7 +90,7 @@ with models.DAG(
         load_receipts_operator = bash_operator.BashOperator(
             task_id='load_logs',
             bash_command=setup_command + ' && ' + 'bq --location=US load --replace --source_format=NEWLINE_DELIMITED_JSON '
-                                                  'ethereum.logs gs://$OUTPUT_BUCKET/logs/*.json ./schemas/gcp/logs.json ',
+                                                  'ethereum.logs $EXPORT_LOCATION_URI/logs/*.json ./schemas/gcp/logs.json ',
             dag=dag,
             env=environment)
 
@@ -97,7 +98,7 @@ with models.DAG(
         load_contracts_operator = bash_operator.BashOperator(
             task_id='load_contracts',
             bash_command=setup_command + ' && ' + 'bq --location=US load --replace --source_format=NEWLINE_DELIMITED_JSON '
-                                                  'ethereum.contracts gs://$OUTPUT_BUCKET/contracts/*.json ./schemas/gcp/contracts.json ',
+                                                  'ethereum.contracts $EXPORT_LOCATION_URI/contracts/*.json ./schemas/gcp/contracts.json ',
             dag=dag,
             env=environment)
 
@@ -105,6 +106,6 @@ with models.DAG(
         load_transfers_operator = bash_operator.BashOperator(
             task_id='load_transfers',
             bash_command=setup_command + ' && ' + 'bq --location=US load --replace --source_format=CSV --skip_leading_rows=1 '
-                                                  'ethereum.erc20_transfers gs://$OUTPUT_BUCKET/erc20_transfers/*.csv ./schemas/gcp/erc20_transfers.json ',
+                                                  'ethereum.erc20_transfers $EXPORT_LOCATION_URI/erc20_transfers/*.csv ./schemas/gcp/erc20_transfers.json ',
             dag=dag,
             env=environment)

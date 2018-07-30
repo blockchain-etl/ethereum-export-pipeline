@@ -83,7 +83,7 @@ with models.DAG(
 
         load_operator = BashOperator(
             task_id='load_{}'.format(task),
-            execution_timeout=60 * 30,
+            execution_timeout=timedelta(minutes=30),
             bash_command=bash_command,
             dag=dag,
             env=environment)

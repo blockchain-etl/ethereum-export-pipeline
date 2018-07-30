@@ -34,7 +34,7 @@ with models.DAG(
         'ethereumetl_load_dag',
         catchup=False,
         # Daily at 1am
-        schedule_interval='30 1 * * *',
+        schedule_interval='10 1 * * *',
         default_args=default_dag_args) as dag:
     setup_command = \
         'set -o xtrace && ' \

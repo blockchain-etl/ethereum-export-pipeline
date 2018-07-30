@@ -4,7 +4,8 @@ import os
 from datetime import datetime, timedelta
 
 from airflow import models
-from airflow.operators import bash_operator
+from airflow.contrib.sensors.gcs_sensor import GoogleCloudStorageObjectSensor
+from airflow.operators.bash_operator import BashOperator
 
 
 def get_boolean_env_variable(env_variable_name, default=True):
@@ -62,50 +63,47 @@ with models.DAG(
     load_contracts = get_boolean_env_variable('LOAD_CONTRACTS', True)
     load_transfers = get_boolean_env_variable('LOAD_TRANSFERS', True)
 
-    if load_blocks:
-        load_blocks_operator = bash_operator.BashOperator(
-            task_id='load_blocks',
-            bash_command=setup_command + ' && ' + 'bq --location=US load --replace --source_format=CSV --skip_leading_rows=1 '
-                                                  'ethereum_blockchain.blocks $EXPORT_LOCATION_URI/blocks/*.csv ./schemas/gcp/blocks.json ',
+
+    def add_load_tasks(task, file_format):
+        wait_sensor = GoogleCloudStorageObjectSensor(
+            task_id='wait_latest_{}'.format(task),
+            dag=dag,
+            timeout=60 * 30,
+            poke_interval=60,
+            bucket=output_bucket,
+            object='export/{}/block_date={}/{}.{}'.format(task, '{{ds}}', task, file_format)
+        )
+        source_format = 'CSV' if file_format == 'csv' else 'NEWLINE_DELIMITED_JSON'
+        skip_leading_rows = '--skip_leading_rows=1' if file_format == 'csv' else ''
+        bash_command = \
+            setup_command + ' && ' + \
+            ('bq --location=US load --replace --source_format={} {} ' +
+             'ethereum_blockchain.{} $EXPORT_LOCATION_URI/{}/*.{} ./schemas/gcp/{}.json ').format(
+                source_format, skip_leading_rows, task, task, file_format, task)
+
+        load_operator = BashOperator(
+            task_id='load_{}'.format(task),
+            execution_timeout=60 * 30,
+            bash_command=bash_command,
             dag=dag,
             env=environment)
+        wait_sensor >> load_operator
+
+
+    if load_blocks:
+        add_load_tasks('blocks', 'csv')
 
     if load_transactions:
-        load_transactions_operator = bash_operator.BashOperator(
-            task_id='load_transactions',
-            bash_command=setup_command + ' && ' + 'bq --location=US load --replace --source_format=CSV --skip_leading_rows=1 '
-                                                  'ethereum_blockchain.transactions $EXPORT_LOCATION_URI/transactions/*.csv ./schemas/gcp/transactions.json ',
-            dag=dag,
-            env=environment)
+        add_load_tasks('transactions', 'csv')
 
     if load_receipts:
-        load_receipts_operator = bash_operator.BashOperator(
-            task_id='load_receipts',
-            bash_command=setup_command + ' && ' + 'bq --location=US load --replace --source_format=CSV --skip_leading_rows=1 '
-                                                  'ethereum_blockchain.receipts $EXPORT_LOCATION_URI/receipts/*.csv ./schemas/gcp/receipts.json ',
-            dag=dag,
-            env=environment)
+        add_load_tasks('receipts', 'csv')
 
     if load_logs:
-        load_receipts_operator = bash_operator.BashOperator(
-            task_id='load_logs',
-            bash_command=setup_command + ' && ' + 'bq --location=US load --replace --source_format=NEWLINE_DELIMITED_JSON '
-                                                  'ethereum_blockchain.logs $EXPORT_LOCATION_URI/logs/*.json ./schemas/gcp/logs.json ',
-            dag=dag,
-            env=environment)
+        add_load_tasks('logs', 'json')
 
     if load_contracts:
-        load_contracts_operator = bash_operator.BashOperator(
-            task_id='load_contracts',
-            bash_command=setup_command + ' && ' + 'bq --location=US load --replace --source_format=NEWLINE_DELIMITED_JSON '
-                                                  'ethereum_blockchain.contracts $EXPORT_LOCATION_URI/contracts/*.json ./schemas/gcp/contracts.json ',
-            dag=dag,
-            env=environment)
+        add_load_tasks('contracts', 'json')
 
     if load_transfers:
-        load_transfers_operator = bash_operator.BashOperator(
-            task_id='load_transfers',
-            bash_command=setup_command + ' && ' + 'bq --location=US load --replace --source_format=CSV --skip_leading_rows=1 '
-                                                  'ethereum_blockchain.erc20_transfers $EXPORT_LOCATION_URI/erc20_transfers/*.csv ./schemas/gcp/erc20_transfers.json ',
-            dag=dag,
-            env=environment)
+        add_load_tasks('erc20_transfers', 'csv')

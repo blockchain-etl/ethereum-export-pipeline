@@ -106,4 +106,4 @@ with models.DAG(
         add_load_tasks('contracts', 'json')
 
     if load_transfers:
-        add_load_tasks('erc20_transfers', 'csv')
+        add_load_tasks('token_transfers', 'csv')

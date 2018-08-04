@@ -60,7 +60,7 @@ with models.DAG(
     export_receipts_and_logs_command = \
         setup_command + ' && ' + \
         'gsutil cp $EXPORT_LOCATION_URI/transactions/block_date=$EXECUTION_DATE/transactions.csv transactions.csv && ' \
-        '$PYTHON3 extract_csv_column.py -i transactions.csv -o transaction_hashes.csv -c transaction_hash && ' \
+        '$PYTHON3 extract_csv_column.py -i transactions.csv -o transaction_hashes.csv -c hash && ' \
         '$PYTHON3 export_receipts_and_logs.py --transaction-hashes transaction_hashes.csv ' \
         '-p $WEB3_PROVIDER_URI --receipts-output receipts.csv --logs-output logs.json && ' \
         'gsutil cp receipts.csv $EXPORT_LOCATION_URI/receipts/block_date=$EXECUTION_DATE/receipts.csv && ' \
@@ -69,16 +69,16 @@ with models.DAG(
     export_contracts_command = \
         setup_command + ' && ' + \
         'gsutil cp $EXPORT_LOCATION_URI/receipts/block_date=$EXECUTION_DATE/receipts.csv receipts.csv && ' \
-        '$PYTHON3 extract_csv_column.py -i receipts.csv -o contract_addresses.csv -c receipt_contract_address && ' \
+        '$PYTHON3 extract_csv_column.py -i receipts.csv -o contract_addresses.csv -c contract_address && ' \
         '$PYTHON3 export_contracts.py --contract-addresses contract_addresses.csv ' \
         '-p $WEB3_PROVIDER_URI --output contracts.json && ' \
         'gsutil cp contracts.json $EXPORT_LOCATION_URI/contracts/block_date=$EXECUTION_DATE/contracts.json '
 
-    extract_erc20_transfers_command = \
+    extract_token_transfers_command = \
         setup_command + ' && ' + \
         'gsutil cp $EXPORT_LOCATION_URI/logs/block_date=$EXECUTION_DATE/logs.json logs.json && ' \
-        '$PYTHON3 extract_erc20_transfers.py --logs logs.json --output erc20_transfers.csv && ' \
-        'gsutil cp erc20_transfers.csv $EXPORT_LOCATION_URI/erc20_transfers/block_date=$EXECUTION_DATE/erc20_transfers.csv '
+        '$PYTHON3 extract_token_transfers.py --logs logs.json --output token_transfers.csv && ' \
+        'gsutil cp token_transfers.csv $EXPORT_LOCATION_URI/token_transfers/block_date=$EXECUTION_DATE/token_transfers.csv '
 
     output_bucket = os.environ.get('OUTPUT_BUCKET')
     if output_bucket is None:
@@ -102,7 +102,7 @@ with models.DAG(
     export_blocks_and_transactions = get_boolean_env_variable('EXPORT_BLOCKS_AND_TRANSACTIONS', True)
     export_receipts_and_logs = get_boolean_env_variable('EXPORT_RECEIPTS_AND_LOGS', True)
     export_contracts = get_boolean_env_variable('EXPORT_CONTRACTS', True)
-    extract_erc20_transfers = get_boolean_env_variable('EXTRACT_ERC20_TRANSFERS', True)
+    extract_token_transfers = get_boolean_env_variable('EXTRACT_TOKEN_TRANSFERS', True)
 
     if export_blocks_and_transactions:
         export_blocks_and_transactions_operator = bash_operator.BashOperator(
@@ -129,11 +129,11 @@ with models.DAG(
         if export_receipts_and_logs:
             export_receipts_and_logs_operator >> export_contracts_operator
 
-    if extract_erc20_transfers:
-        extract_erc20_transfers_operator = bash_operator.BashOperator(
-            task_id='extract_erc20_transfers',
-            bash_command=extract_erc20_transfers_command,
+    if extract_token_transfers:
+        extract_token_transfers_operator = bash_operator.BashOperator(
+            task_id='extract_token_transfers',
+            bash_command=extract_token_transfers_command,
             dag=dag,
             env=environment)
         if export_receipts_and_logs:
-            export_receipts_and_logs_operator >> extract_erc20_transfers_operator
+            export_receipts_and_logs_operator >> extract_token_transfers_operator

@@ -3,7 +3,7 @@ from troposphere.datapipeline import Pipeline, PipelineTag, PipelineObject, Obje
     ParameterObjectAttribute
 
 from config import EXPORT_BLOCKS_AND_TRANSACTIONS_COMMAND, EXPORT_RECEIPTS_AND_LOGS_COMMAND, \
-    EXPORT_CONTRACTS_COMMAND, EXPORT_ERC20_TRANSFERS_COMMAND, EXPORT_ERC20_TOKENS_COMMAND
+    EXPORT_CONTRACTS_COMMAND, EXPORT_TOKEN_TRANSFERS_COMMAND, EXPORT_TOKENS_COMMAND
 
 
 def build_command_parameter_object(activity_name, description, default):
@@ -64,8 +64,8 @@ def generate_export_pipeline_template(
         export_blocks_and_transactions=True,
         export_receipts_and_logs=False,
         export_contracts=False,
-        export_erc20_transfers=False,
-        export_erc20_tokens=False):
+        export_token_transfers=False,
+        export_tokens=False):
     """export_partitions is a list of tuples for start and end blocks"""
     template = Template()
 
@@ -112,18 +112,18 @@ def generate_export_pipeline_template(
             default=EXPORT_CONTRACTS_COMMAND
         ))
 
-    if export_erc20_transfers:
+    if export_token_transfers:
         parameter_objects.append(build_command_parameter_object(
-            activity_name='erc20_transfers',
-            description='Shell command for exporting ERC20 transfers',
-            default=EXPORT_ERC20_TRANSFERS_COMMAND
+            activity_name='token_transfers',
+            description='Shell command for exporting token transfers',
+            default=EXPORT_TOKEN_TRANSFERS_COMMAND
         ))
 
-    if export_erc20_tokens:
+    if export_tokens:
         parameter_objects.append(build_command_parameter_object(
-            activity_name='erc20_tokens',
-            description='Shell command for exporting ERC20 tokens',
-            default=EXPORT_ERC20_TOKENS_COMMAND
+            activity_name='tokens',
+            description='Shell command for exporting tokens',
+            default=EXPORT_TOKENS_COMMAND
         ))
 
     # Pipeline Objects
@@ -167,18 +167,18 @@ def generate_export_pipeline_template(
                 'contracts', start, end, inputs=['receipts'], outputs=['contracts']))
             pipeline_objects.append(build_s3_location('contracts', start, end))
 
-        # ERC20 transfer pipe
-        if export_erc20_transfers:
+        # Token transfer pipe
+        if export_token_transfers:
             pipeline_objects.append(build_shell_command_activity(
-                'erc20_transfers', start, end, outputs=['erc20_transfers']))
+                'token_transfers', start, end, outputs=['token_transfers']))
 
-        if export_erc20_transfers or export_erc20_tokens:
-            pipeline_objects.append(build_s3_location('erc20_transfers', start, end))
+        if export_token_transfers or export_tokens:
+            pipeline_objects.append(build_s3_location('token_transfers', start, end))
 
-        if export_erc20_tokens:
+        if export_tokens:
             pipeline_objects.append(build_shell_command_activity(
-                'erc20_tokens', start, end, inputs=['erc20_transfers'], outputs=['erc20_tokens']))
-            pipeline_objects.append(build_s3_location('erc20_tokens', start, end))
+                'tokens', start, end, inputs=['token_transfers'], outputs=['tokens']))
+            pipeline_objects.append(build_s3_location('tokens', start, end))
 
     template.add_resource(Pipeline(
         "EthereumETLPipeline",

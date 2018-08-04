@@ -20,23 +20,23 @@ job.init(args['JOB_NAME'], args)
 data_source = glueContext.create_dynamic_frame.from_catalog(database="ethereumetl", table_name="transactions",
                                                             transformation_ctx="data_source")
 ## @type: ApplyMapping
-## @args: [mapping = [("start_block", "string", "start_block", "string"),("end_block", "string", "end_block", "string"),("transaction_hash", "string", "transaction_hash", "string"), ("tx_nonce", "long", "tx_nonce", "long"), ("tx_block_hash", "string", "tx_block_hash", "string"), ("tx_block_number", "long", "tx_block_number", "long"), ("transaction_index", "long", "transaction_index", "long"), ("tx_from", "string", "tx_from", "string"), ("tx_to", "string", "tx_to", "string"), ("tx_value", "long", "tx_value", "long"), ("tx_gas", "long", "tx_gas", "long"), ("tx_gas_price", "long", "tx_gas_price", "long"), ("tx_input", "string", "tx_input", "string")], transformation_ctx = "mapped_frame"]
+## @args: [mapping = [("start_block", "string", "start_block", "string"),("end_block", "string", "end_block", "string"),("hash", "string", "hash", "string"), ("nonce", "long", "nonce", "long"), ("block_hash", "string", "block_hash", "string"), ("block_number", "long", "block_number", "long"), ("transaction_index", "long", "transaction_index", "long"), ("from_address", "string", "from_address", "string"), ("to_address", "string", "to_address", "string"), ("value", "long", "value", "long"), ("gas", "long", "gas", "long"), ("gas_price", "long", "gas_price", "long"), ("input", "string", "input", "string")], transformation_ctx = "mapped_frame"]
 ## @return: mapped_frame
 ## @inputs: [frame = data_source]
 mapped_frame = ApplyMapping.apply(frame=data_source, mappings=[
     ("start_block", "string", "start_block", "string"),
     ("end_block", "string", "end_block", "string"),
-    ("transaction_hash", "string", "transaction_hash", "string"),
-    ("tx_nonce", "long", "tx_nonce", "long"),
-    ("tx_block_hash", "string", "tx_block_hash", "string"),
-    ("tx_block_number", "long", "tx_block_number", "long"),
+    ("hash", "string", "hash", "string"),
+    ("nonce", "long", "nonce", "long"),
+    ("block_hash", "string", "block_hash", "string"),
+    ("block_number", "long", "block_number", "long"),
     ("transaction_index", "long", "transaction_index", "long"),
-    ("tx_from", "string", "tx_from", "string"),
-    ("tx_to", "string", "tx_to", "string"),
-    ("tx_value", "string", "tx_value", "decimal(38,0)"),
-    ("tx_gas", "long", "tx_gas", "long"),
-    ("tx_gas_price", "long", "tx_gas_price", "long"),
-    ("tx_input", "string", "tx_input", "string")],
+    ("from_address", "string", "from_address", "string"),
+    ("to_address", "string", "to_address", "string"),
+    ("value", "string", "value", "decimal(38,0)"),
+    ("gas", "long", "gas", "long"),
+    ("gas_price", "long", "gas_price", "long"),
+    ("input", "string", "input", "string")],
                                    transformation_ctx="mapped_frame")
 ## @type: ResolveChoice
 ## @args: [choice = "make_struct", transformation_ctx = "resolve_choice_frame"]

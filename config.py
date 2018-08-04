@@ -37,10 +37,10 @@ EXPORT_BLOCKS_AND_TRANSACTIONS_COMMAND = SETUP_COMMAND + ' && ' + \
     "--blocks-output ${OUTPUT1_STAGING_DIR}/blocks_${PADDED_START}_${PADDED_END}.csv --transactions-output ${OUTPUT2_STAGING_DIR}/transactions_${PADDED_START}_${PADDED_END}.csv"
 
 EXPORT_RECEIPTS_AND_LOGS_COMMAND = SETUP_COMMAND + ' && ' + \
-    "python3 extract_csv_column.py -i ${INPUT1_STAGING_DIR}/transactions_${PADDED_START}_${PADDED_END}.csv -o ${OUTPUT1_STAGING_DIR}/tx_hashes.csv.temp -c tx_hash && " + \
-    "python3 export_receipts_and_logs.py --tx-hashes ${OUTPUT1_STAGING_DIR}/tx_hashes.csv.temp -p $IPC_PATH -w 1 " + \
+    "python3 extract_csv_column.py -i ${INPUT1_STAGING_DIR}/transactions_${PADDED_START}_${PADDED_END}.csv -o ${OUTPUT1_STAGING_DIR}/transaction_hashes.csv.temp -c transaction_hash && " + \
+    "python3 export_receipts_and_logs.py --transaction-hashes ${OUTPUT1_STAGING_DIR}/transaction_hashes.csv.temp -p $IPC_PATH -w 1 " + \
     "--receipts-output ${OUTPUT1_STAGING_DIR}/receipts_${PADDED_START}_${PADDED_END}.csv --logs-output ${OUTPUT2_STAGING_DIR}/logs_${PADDED_START}_${PADDED_END}.csv && " + \
-    "rm -f ${OUTPUT1_STAGING_DIR}/tx_hashes.csv.temp"
+    "rm -f ${OUTPUT1_STAGING_DIR}/transaction_hashes.csv.temp"
 
 EXPORT_CONTRACTS_COMMAND = SETUP_COMMAND + ' && ' + \
     "python3 extract_csv_column.py -i ${INPUT1_STAGING_DIR}/receipts_${PADDED_START}_${PADDED_END}.csv -o ${OUTPUT1_STAGING_DIR}/contract_addresses.csv.temp -c receipt_contract_address && " + \

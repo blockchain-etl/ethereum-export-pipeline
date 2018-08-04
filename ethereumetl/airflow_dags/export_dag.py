@@ -60,8 +60,8 @@ with models.DAG(
     export_receipts_and_logs_command = \
         setup_command + ' && ' + \
         'gsutil cp $EXPORT_LOCATION_URI/transactions/block_date=$EXECUTION_DATE/transactions.csv transactions.csv && ' \
-        '$PYTHON3 extract_csv_column.py -i transactions.csv -o tx_hashes.csv -c tx_hash && ' \
-        '$PYTHON3 export_receipts_and_logs.py --tx-hashes tx_hashes.csv ' \
+        '$PYTHON3 extract_csv_column.py -i transactions.csv -o transaction_hashes.csv -c transaction_hash && ' \
+        '$PYTHON3 export_receipts_and_logs.py --transaction-hashes transaction_hashes.csv ' \
         '-p $WEB3_PROVIDER_URI --receipts-output receipts.csv --logs-output logs.json && ' \
         'gsutil cp receipts.csv $EXPORT_LOCATION_URI/receipts/block_date=$EXECUTION_DATE/receipts.csv && ' \
         'gsutil cp logs.json $EXPORT_LOCATION_URI/logs/block_date=$EXECUTION_DATE/logs.json '

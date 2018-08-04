@@ -20,7 +20,7 @@ job.init(args['JOB_NAME'], args)
 data_source = glueContext.create_dynamic_frame.from_catalog(database="ethereumetl", table_name="erc20_transfers",
                                                             transformation_ctx="data_source")
 ## @type: ApplyMapping
-## @args: [mapping = [("erc20_token", "string", "erc20_token", "string"), ("erc20_from", "string", "erc20_from", "string"), ("erc20_to", "string", "erc20_to", "string"), ("erc20_value", "long", "erc20_value", "long"), ("erc20_tx_hash", "string", "erc20_tx_hash", "string"), ("erc20_log_index", "long", "erc20_log_index", "long"), ("erc20_block_number", "long", "erc20_block_number", "long")], transformation_ctx = "mapped_frame"]
+## @args: [mapping = [("erc20_token", "string", "erc20_token", "string"), ("erc20_from", "string", "erc20_from", "string"), ("erc20_to", "string", "erc20_to", "string"), ("erc20_value", "long", "erc20_value", "long"), ("erc20_transaction_hash", "string", "erc20_transaction_hash", "string"), ("erc20_log_index", "long", "erc20_log_index", "long"), ("erc20_block_number", "long", "erc20_block_number", "long")], transformation_ctx = "mapped_frame"]
 ## @return: mapped_frame
 ## @inputs: [frame = data_source]
 mapped_frame = ApplyMapping.apply(frame=data_source, mappings=[
@@ -30,7 +30,7 @@ mapped_frame = ApplyMapping.apply(frame=data_source, mappings=[
     ("erc20_from", "string", "erc20_from", "string"),
     ("erc20_to", "string", "erc20_to", "string"),
     ("erc20_value", "string", "erc20_value", "decimal(38,0)"),
-    ("erc20_tx_hash", "string", "erc20_tx_hash", "string"),
+    ("erc20_transaction_hash", "string", "erc20_transaction_hash", "string"),
     ("erc20_log_index", "long", "erc20_log_index", "long"),
     ("erc20_block_number", "long", "erc20_block_number", "long")],
                                   transformation_ctx="mapped_frame")

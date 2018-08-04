@@ -20,13 +20,13 @@ job.init(args['JOB_NAME'], args)
 data_source = glueContext.create_dynamic_frame.from_catalog(database="ethereumetl", table_name="transactions",
                                                             transformation_ctx="data_source")
 ## @type: ApplyMapping
-## @args: [mapping = [("start_block", "string", "start_block", "string"),("end_block", "string", "end_block", "string"),("tx_hash", "string", "tx_hash", "string"), ("tx_nonce", "long", "tx_nonce", "long"), ("tx_block_hash", "string", "tx_block_hash", "string"), ("tx_block_number", "long", "tx_block_number", "long"), ("tx_index", "long", "tx_index", "long"), ("tx_from", "string", "tx_from", "string"), ("tx_to", "string", "tx_to", "string"), ("tx_value", "long", "tx_value", "long"), ("tx_gas", "long", "tx_gas", "long"), ("tx_gas_price", "long", "tx_gas_price", "long"), ("tx_input", "string", "tx_input", "string")], transformation_ctx = "mapped_frame"]
+## @args: [mapping = [("start_block", "string", "start_block", "string"),("end_block", "string", "end_block", "string"),("transaction_hash", "string", "transaction_hash", "string"), ("tx_nonce", "long", "tx_nonce", "long"), ("tx_block_hash", "string", "tx_block_hash", "string"), ("tx_block_number", "long", "tx_block_number", "long"), ("tx_index", "long", "tx_index", "long"), ("tx_from", "string", "tx_from", "string"), ("tx_to", "string", "tx_to", "string"), ("tx_value", "long", "tx_value", "long"), ("tx_gas", "long", "tx_gas", "long"), ("tx_gas_price", "long", "tx_gas_price", "long"), ("tx_input", "string", "tx_input", "string")], transformation_ctx = "mapped_frame"]
 ## @return: mapped_frame
 ## @inputs: [frame = data_source]
 mapped_frame = ApplyMapping.apply(frame=data_source, mappings=[
     ("start_block", "string", "start_block", "string"),
     ("end_block", "string", "end_block", "string"),
-    ("tx_hash", "string", "tx_hash", "string"),
+    ("transaction_hash", "string", "transaction_hash", "string"),
     ("tx_nonce", "long", "tx_nonce", "long"),
     ("tx_block_hash", "string", "tx_block_hash", "string"),
     ("tx_block_number", "long", "tx_block_number", "long"),

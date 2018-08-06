@@ -35,7 +35,8 @@ with models.DAG(
         schedule_interval='0 1 * * *',
         default_args=default_dag_args) as dag:
 
-        export_blocks_and_transactions_operator = bash_operator.BashOperator(
-            task_id='sleep',
-            bash_command='sleep 600')
-
+    test_command = 'cp $DAGS_FOLDER/resources/miniconda.tar . && ' \
+                              'tar xvf miniconda.tar > untar_miniconda.log'
+    test_operator = bash_operator.BashOperator(
+        task_id='sleep',
+        bash_command=test_command)

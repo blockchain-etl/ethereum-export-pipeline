@@ -61,6 +61,7 @@ with models.DAG(
     load_receipts = get_boolean_env_variable('LOAD_RECEIPTS', True)
     load_logs = get_boolean_env_variable('LOAD_LOGS', True)
     load_contracts = get_boolean_env_variable('LOAD_CONTRACTS', True)
+    load_tokens = get_boolean_env_variable('LOAD_TOKENS', True)
     load_transfers = get_boolean_env_variable('LOAD_TRANSFERS', True)
 
 
@@ -104,6 +105,9 @@ with models.DAG(
 
     if load_contracts:
         add_load_tasks('contracts', 'json')
+
+    if load_tokens:
+        add_load_tasks('tokens', 'csv')
 
     if load_transfers:
         add_load_tasks('token_transfers', 'csv')

@@ -35,7 +35,7 @@ with models.DAG(
         schedule_interval='0 1 * * *',
         default_args=default_dag_args) as dag:
 
-    test_command = 'cp $DAGS_FOLDER/resources/miniconda.tar . && ' \
+    test_command = 'cp /home/airflow/gcs/dags/resources/miniconda.tar . && ' \
                               'tar xvf miniconda.tar > untar_miniconda.log'
     test_operator = bash_operator.BashOperator(
         task_id='sleep',

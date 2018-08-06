@@ -37,7 +37,7 @@ with models.DAG(
         schedule_interval='10 1 * * *',
         default_args=default_dag_args) as dag:
     setup_command = \
-        'set -o xtrace && ' \
+        'set -o xtrace && set -o pipefail && ' \
         'echo "OUTPUT_BUCKET: $OUTPUT_BUCKET" && ' \
         'echo "EXECUTION_DATE: $EXECUTION_DATE" && ' \
         'echo "ETHEREUMETL_REPO_BRANCH: $ETHEREUMETL_REPO_BRANCH" && ' \

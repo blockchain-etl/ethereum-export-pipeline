@@ -40,7 +40,7 @@ with models.DAG(
                               'PYTHON3=$PWD/miniconda/bin/python3'
 
     setup_command = \
-        'set -o xtrace && ' + install_python3_command + \
+        'set -o xtrace && set -o pipefail && ' + install_python3_command + \
         ' && ' \
         'git clone --branch $ETHEREUMETL_REPO_BRANCH http://github.com/medvedev1088/ethereum-etl && cd ethereum-etl && ' \
         'BLOCK_RANGE=$($PYTHON3 get_block_range_for_date.py -d $EXECUTION_DATE -p $WEB3_PROVIDER_URI) && ' \
@@ -60,8 +60,8 @@ with models.DAG(
     export_receipts_and_logs_command = \
         setup_command + ' && ' + \
         'gsutil cp $EXPORT_LOCATION_URI/transactions/block_date=$EXECUTION_DATE/transactions.csv transactions.csv && ' \
-        '$PYTHON3 extract_csv_column.py -i transactions.csv -o transaction_hashes.csv -c hash && ' \
-        '$PYTHON3 export_receipts_and_logs.py --transaction-hashes transaction_hashes.csv ' \
+        '$PYTHON3 extract_csv_column.py -i transactions.csv -o transaction_hashes.txt -c hash && ' \
+        '$PYTHON3 export_receipts_and_logs.py --transaction-hashes transaction_hashes.txt ' \
         '-p $WEB3_PROVIDER_URI --receipts-output receipts.csv --logs-output logs.json && ' \
         'gsutil cp receipts.csv $EXPORT_LOCATION_URI/receipts/block_date=$EXECUTION_DATE/receipts.csv && ' \
         'gsutil cp logs.json $EXPORT_LOCATION_URI/logs/block_date=$EXECUTION_DATE/logs.json '
@@ -69,10 +69,19 @@ with models.DAG(
     export_contracts_command = \
         setup_command + ' && ' + \
         'gsutil cp $EXPORT_LOCATION_URI/receipts/block_date=$EXECUTION_DATE/receipts.csv receipts.csv && ' \
-        '$PYTHON3 extract_csv_column.py -i receipts.csv -o contract_addresses.csv -c contract_address && ' \
-        '$PYTHON3 export_contracts.py --contract-addresses contract_addresses.csv ' \
+        '$PYTHON3 extract_csv_column.py -i receipts.csv -o contract_addresses.txt -c contract_address && ' \
+        '$PYTHON3 export_contracts.py --contract-addresses contract_addresses.txt ' \
         '-p $WEB3_PROVIDER_URI --output contracts.json && ' \
         'gsutil cp contracts.json $EXPORT_LOCATION_URI/contracts/block_date=$EXECUTION_DATE/contracts.json '
+
+    export_tokens_command = \
+        setup_command + ' && ' + \
+        'gsutil cp $EXPORT_LOCATION_URI/contracts/block_date=$EXECUTION_DATE/contracts.json contracts.json && ' \
+        '$PYTHON3 filter_items.py -i contracts.json -p "item[\'is_erc20\'] or item[\'is_erc721\']" | ' \
+        '$PYTHON3 extract_field.py -f address -o token_addresses.txt && ' \
+        '$PYTHON3 export_tokens.py --token-addresses token_addresses.txt ' \
+        '-p $WEB3_PROVIDER_URI --output tokens.csv && ' \
+        'gsutil cp tokens.csv $EXPORT_LOCATION_URI/tokens/block_date=$EXECUTION_DATE/tokens.csv '
 
     extract_token_transfers_command = \
         setup_command + ' && ' + \
@@ -102,6 +111,7 @@ with models.DAG(
     export_blocks_and_transactions = get_boolean_env_variable('EXPORT_BLOCKS_AND_TRANSACTIONS', True)
     export_receipts_and_logs = get_boolean_env_variable('EXPORT_RECEIPTS_AND_LOGS', True)
     export_contracts = get_boolean_env_variable('EXPORT_CONTRACTS', True)
+    export_tokens = get_boolean_env_variable('EXPORT_TOKENS', True)
     extract_token_transfers = get_boolean_env_variable('EXTRACT_TOKEN_TRANSFERS', True)
 
     if export_blocks_and_transactions:
@@ -128,6 +138,15 @@ with models.DAG(
             env=environment)
         if export_receipts_and_logs:
             export_receipts_and_logs_operator >> export_contracts_operator
+
+    if export_tokens:
+        export_tokens_operator = bash_operator.BashOperator(
+            task_id='export_tokens',
+            bash_command=export_tokens_command,
+            dag=dag,
+            env=environment)
+        if export_contracts:
+            export_contracts_operator >> export_tokens_operator
 
     if extract_token_transfers:
         extract_token_transfers_operator = bash_operator.BashOperator(

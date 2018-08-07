@@ -39,7 +39,6 @@ with models.DAG(
     setup_command = \
         'set -o xtrace && set -o pipefail && ' \
         'echo "OUTPUT_BUCKET: $OUTPUT_BUCKET" && ' \
-        'echo "EXECUTION_DATE: $EXECUTION_DATE" && ' \
         'echo "ETHEREUMETL_REPO_BRANCH: $ETHEREUMETL_REPO_BRANCH" && ' \
         'EXPORT_LOCATION_URI=gs://$OUTPUT_BUCKET/export && ' \
         'git clone --branch $ETHEREUMETL_REPO_BRANCH http://github.com/medvedev1088/ethereum-etl && cd ethereum-etl && ' \
@@ -51,7 +50,6 @@ with models.DAG(
     ethereumetl_repo_branch = os.environ.get('ETHEREUMETL_REPO_BRANCH', 'master')
 
     environment = {
-        'EXECUTION_DATE': '{{ ds }}',
         'ETHEREUMETL_REPO_BRANCH': ethereumetl_repo_branch,
         'OUTPUT_BUCKET': output_bucket
     }
@@ -63,6 +61,8 @@ with models.DAG(
     load_contracts = get_boolean_env_variable('LOAD_CONTRACTS', True)
     load_tokens = get_boolean_env_variable('LOAD_TOKENS', True)
     load_transfers = get_boolean_env_variable('LOAD_TRANSFERS', True)
+
+    bigquery_project_id = os.environ.get('BIGQUERY_PROJECT_ID', None)
 
 
     def add_load_tasks(task, file_format, extra_options=''):
@@ -76,11 +76,12 @@ with models.DAG(
         )
         source_format = 'CSV' if file_format == 'csv' else 'NEWLINE_DELIMITED_JSON'
         skip_leading_rows = '--skip_leading_rows=1' if file_format == 'csv' else ''
+        project_id = '--project_id ' + bigquery_project_id if bigquery_project_id is not None else ''
         bash_command = \
             setup_command + ' && ' + \
-            ('bq --location=US load --replace --source_format={} {} {} ' +
+            ('bq --location=US {} load --replace --source_format={} {} {} ' +
              'ethereum_blockchain.{} $EXPORT_LOCATION_URI/{}/*.{} ./schemas/gcp/{}.json ').format(
-                source_format, skip_leading_rows, extra_options, task, task, file_format, task)
+                project_id, source_format, skip_leading_rows, extra_options, task, task, file_format, task)
 
         load_operator = BashOperator(
             task_id='load_{}'.format(task),

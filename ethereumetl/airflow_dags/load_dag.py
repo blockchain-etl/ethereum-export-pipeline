@@ -62,7 +62,7 @@ with models.DAG(
     load_tokens = get_boolean_env_variable('LOAD_TOKENS', True)
     load_transfers = get_boolean_env_variable('LOAD_TRANSFERS', True)
 
-    bigquery_project_id = os.environ.get('BIGQUERY_PROJECT_ID', None)
+    bigquery_destination_project_id = os.environ.get('BIGQUERY_DESTINATION_PROJECT_ID', 'bigquery-public-data')
 
 
     def add_load_tasks(task, file_format, extra_options=''):
@@ -76,20 +76,33 @@ with models.DAG(
         )
         source_format = 'CSV' if file_format == 'csv' else 'NEWLINE_DELIMITED_JSON'
         skip_leading_rows = '--skip_leading_rows=1' if file_format == 'csv' else ''
-        project_id = '--project_id ' + bigquery_project_id if bigquery_project_id is not None else ''
-        bash_command = \
+        load_bash_command = \
             setup_command + ' && ' + \
-            ('bq --location=US {} load --replace --source_format={} {} {} ' +
+            ('bq --location=US load --replace --source_format={} {} {} ' +
              'ethereum_blockchain.{} $EXPORT_LOCATION_URI/{}/*.{} ./schemas/gcp/{}.json ').format(
-                project_id, source_format, skip_leading_rows, extra_options, task, task, file_format, task)
+                source_format, skip_leading_rows, extra_options, task, task, file_format, task)
 
         load_operator = BashOperator(
             task_id='load_{}'.format(task),
             execution_timeout=timedelta(minutes=30),
-            bash_command=bash_command,
+            bash_command=load_bash_command,
             dag=dag,
             env=environment)
-        wait_sensor >> load_operator
+
+        project_id_prefix = bigquery_destination_project_id + ':' if bigquery_destination_project_id else ''
+        copy_bash_command = \
+            setup_command + ' && ' + \
+            ('bq --location=US cp --force ethereum_blockchain.{} {}ethereum_blockchain.{}').format(
+                task, project_id_prefix, task
+            )
+        copy_operator = BashOperator(
+            task_id='copy_{}'.format(task),
+            execution_timeout=timedelta(minutes=30),
+            bash_command=copy_bash_command,
+            dag=dag,
+            env=environment)
+
+        wait_sensor >> load_operator >> copy_operator
 
 
     if load_blocks:

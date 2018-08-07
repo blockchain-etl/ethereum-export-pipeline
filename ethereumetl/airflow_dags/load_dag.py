@@ -65,7 +65,7 @@ with models.DAG(
     load_transfers = get_boolean_env_variable('LOAD_TRANSFERS', True)
 
 
-    def add_load_tasks(task, file_format):
+    def add_load_tasks(task, file_format, extra_options=''):
         wait_sensor = GoogleCloudStorageObjectSensor(
             task_id='wait_latest_{}'.format(task),
             dag=dag,
@@ -78,9 +78,9 @@ with models.DAG(
         skip_leading_rows = '--skip_leading_rows=1' if file_format == 'csv' else ''
         bash_command = \
             setup_command + ' && ' + \
-            ('bq --location=US load --replace --source_format={} {} ' +
+            ('bq --location=US load --replace --source_format={} {} {} ' +
              'ethereum_blockchain.{} $EXPORT_LOCATION_URI/{}/*.{} ./schemas/gcp/{}.json ').format(
-                source_format, skip_leading_rows, task, task, file_format, task)
+                source_format, skip_leading_rows, extra_options, task, task, file_format, task)
 
         load_operator = BashOperator(
             task_id='load_{}'.format(task),
@@ -107,7 +107,7 @@ with models.DAG(
         add_load_tasks('contracts', 'json')
 
     if load_tokens:
-        add_load_tasks('tokens', 'csv')
+        add_load_tasks('tokens', 'csv', '--allow_quoted_newlines')
 
     if load_transfers:
         add_load_tasks('token_transfers', 'csv')

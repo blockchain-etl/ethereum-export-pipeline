@@ -54,7 +54,7 @@ with models.DAG(
     export_blocks_and_transactions_command = \
         setup_command + ' && ' + \
         'echo $BLOCK_RANGE > blocks_meta.txt && ' \
-        '$PYTHON3 export_blocks_and_transactions.py -s $START_BLOCK -e $END_BLOCK ' \
+        '$PYTHON3 export_blocks_and_transactions.py -w 2 -s $START_BLOCK -e $END_BLOCK ' \
         '-p $WEB3_PROVIDER_URI --blocks-output blocks.csv --transactions-output transactions.csv && ' \
         'gsutil cp blocks.csv $EXPORT_LOCATION_URI/blocks/block_date=$EXECUTION_DATE/blocks.csv && ' \
         'gsutil cp transactions.csv $EXPORT_LOCATION_URI/transactions/block_date=$EXECUTION_DATE/transactions.csv && ' \
@@ -64,7 +64,7 @@ with models.DAG(
         setup_command + ' && ' + \
         'gsutil cp $EXPORT_LOCATION_URI/transactions/block_date=$EXECUTION_DATE/transactions.csv transactions.csv && ' \
         '$PYTHON3 extract_csv_column.py -i transactions.csv -o transaction_hashes.txt -c hash && ' \
-        '$PYTHON3 export_receipts_and_logs.py --transaction-hashes transaction_hashes.txt ' \
+        '$PYTHON3 export_receipts_and_logs.py -w 2 --transaction-hashes transaction_hashes.txt ' \
         '-p $WEB3_PROVIDER_URI --receipts-output receipts.csv --logs-output logs.json && ' \
         'gsutil cp receipts.csv $EXPORT_LOCATION_URI/receipts/block_date=$EXECUTION_DATE/receipts.csv && ' \
         'gsutil cp logs.json $EXPORT_LOCATION_URI/logs/block_date=$EXECUTION_DATE/logs.json '
@@ -73,7 +73,7 @@ with models.DAG(
         setup_command + ' && ' + \
         'gsutil cp $EXPORT_LOCATION_URI/receipts/block_date=$EXECUTION_DATE/receipts.csv receipts.csv && ' \
         '$PYTHON3 extract_csv_column.py -i receipts.csv -o contract_addresses.txt -c contract_address && ' \
-        '$PYTHON3 export_contracts.py --contract-addresses contract_addresses.txt ' \
+        '$PYTHON3 export_contracts.py -w 2 --contract-addresses contract_addresses.txt ' \
         '-p $WEB3_PROVIDER_URI --output contracts.json && ' \
         'gsutil cp contracts.json $EXPORT_LOCATION_URI/contracts/block_date=$EXECUTION_DATE/contracts.json '
 
@@ -82,14 +82,14 @@ with models.DAG(
         'gsutil cp $EXPORT_LOCATION_URI/contracts/block_date=$EXECUTION_DATE/contracts.json contracts.json && ' \
         '$PYTHON3 filter_items.py -i contracts.json -p "item[\'is_erc20\'] or item[\'is_erc721\']" | ' \
         '$PYTHON3 extract_field.py -f address -o token_addresses.txt && ' \
-        '$PYTHON3 export_tokens.py --token-addresses token_addresses.txt ' \
+        '$PYTHON3 export_tokens.py -w 2 --token-addresses token_addresses.txt ' \
         '-p $WEB3_PROVIDER_URI --output tokens.csv && ' \
         'gsutil cp tokens.csv $EXPORT_LOCATION_URI/tokens/block_date=$EXECUTION_DATE/tokens.csv '
 
     extract_token_transfers_command = \
         setup_command + ' && ' + \
         'gsutil cp $EXPORT_LOCATION_URI/logs/block_date=$EXECUTION_DATE/logs.json logs.json && ' \
-        '$PYTHON3 extract_token_transfers.py --logs logs.json --output token_transfers.csv && ' \
+        '$PYTHON3 extract_token_transfers.py -w 2 --logs logs.json --output token_transfers.csv && ' \
         'gsutil cp token_transfers.csv $EXPORT_LOCATION_URI/token_transfers/block_date=$EXECUTION_DATE/token_transfers.csv '
 
     output_bucket = os.environ.get('OUTPUT_BUCKET')

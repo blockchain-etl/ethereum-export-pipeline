@@ -54,74 +54,86 @@ with models.DAG(
         'OUTPUT_BUCKET': output_bucket
     }
 
-    load_blocks = get_boolean_env_variable('LOAD_BLOCKS', True)
-    load_transactions = get_boolean_env_variable('LOAD_TRANSACTIONS', True)
-    load_receipts = get_boolean_env_variable('LOAD_RECEIPTS', True)
-    load_logs = get_boolean_env_variable('LOAD_LOGS', True)
-    load_contracts = get_boolean_env_variable('LOAD_CONTRACTS', True)
-    load_tokens = get_boolean_env_variable('LOAD_TOKENS', True)
-    load_transfers = get_boolean_env_variable('LOAD_TRANSFERS', True)
-
     bigquery_destination_project_id = os.environ.get('BIGQUERY_DESTINATION_PROJECT_ID', 'bigquery-public-data')
 
 
     def add_load_tasks(task, file_format, extra_options=''):
         wait_sensor = GoogleCloudStorageObjectSensor(
-            task_id='wait_latest_{}'.format(task),
+            task_id='wait_latest_{task}'.format(task=task),
             dag=dag,
             timeout=60 * 30,
             poke_interval=60,
             bucket=output_bucket,
-            object='export/{}/block_date={}/{}.{}'.format(task, '{{ds}}', task, file_format)
+            object='export/{task}/block_date={datestamp}/{task}.{file_format}'.format(
+                task=task, datestamp='{{ds}}', file_format=file_format)
         )
         source_format = 'CSV' if file_format == 'csv' else 'NEWLINE_DELIMITED_JSON'
         skip_leading_rows = '--skip_leading_rows=1' if file_format == 'csv' else ''
         load_bash_command = \
             setup_command + ' && ' + \
-            ('bq --location=US load --replace --source_format={} {} {} ' +
-             'ethereum_blockchain.{} $EXPORT_LOCATION_URI/{}/*.{} ./schemas/gcp/{}.json ').format(
-                source_format, skip_leading_rows, extra_options, task, task, file_format, task)
+            ('bq --location=US load --replace --source_format={source_format} {skip_leading_rows} {extra_options} ' +
+             'ethereum_blockchain_raw.{task} $EXPORT_LOCATION_URI/{task}/*.{file_format} ./schemas/gcp/raw/{task}.json ').format(
+                task=task, source_format=source_format, skip_leading_rows=skip_leading_rows,
+                extra_options=extra_options, file_format=file_format)
 
         load_operator = BashOperator(
-            task_id='load_{}'.format(task),
+            task_id='load_{task}'.format(task=task),
             execution_timeout=timedelta(minutes=30),
             bash_command=load_bash_command,
             dag=dag,
             env=environment)
 
+        wait_sensor >> load_operator
+        return load_operator
+
+
+    def add_enrich_tasks(task, time_partitioning_field='block_timestamp', dependencies=None):
+        time_partitioning_field_option = '--time_partitioning_field ' + time_partitioning_field if time_partitioning_field is not None else ''
         project_id_prefix = bigquery_destination_project_id + ':' if bigquery_destination_project_id else ''
-        copy_bash_command = \
+        enrich_bash_command = \
             setup_command + ' && ' + \
-            ('bq --location=US cp --force ethereum_blockchain.{} {}ethereum_blockchain.{}').format(
-                task, project_id_prefix, task
-            )
-        copy_operator = BashOperator(
-            task_id='copy_{}'.format(task),
+            'CURRENT_TIMESTAMP=$(date +%s%N) && ' + \
+            ('bq mk --table --description "$(cat ./schemas/gcp/enriched/descriptions/{task}.txt | tr \'\n\' \' \')"' +
+             ' {time_partitioning_field_option} ' +
+             'ethereum_blockchain_temp.{task}_$CURRENT_TIMESTAMP ./schemas/gcp/enriched/{task}.json').format(
+                task=task, time_partitioning_field_option=time_partitioning_field_option) + ' && ' + \
+            ('bq --location=US query --destination_table ethereum_blockchain_temp.{task}_$CURRENT_TIMESTAMP ' +
+             '--use_legacy_sql=false ' +
+             '"$(cat ./schemas/gcp/enriched/sqls/{task}.sql | tr \'\n\' \' \')"').format(
+                task=task) + ' && ' + \
+            ('bq --location=US cp --force ethereum_blockchain_temp.{task}_$CURRENT_TIMESTAMP ' +
+             'ethereum_blockchain.{task}').format(
+                task=task) + ' && ' + \
+            ('bq --location=US cp --force ethereum_blockchain_temp.{task}_$CURRENT_TIMESTAMP ' +
+             '{project_id_prefix}ethereum_blockchain.{task}').format(
+                task=task, project_id_prefix=project_id_prefix) + ' && ' + \
+            ('bq --location=US rm --force --table ethereum_blockchain_temp.{task}_$CURRENT_TIMESTAMP').format(
+                task=task)
+
+        enrich_operator = BashOperator(
+            task_id='enrich_{task}'.format(task=task),
             execution_timeout=timedelta(minutes=30),
-            bash_command=copy_bash_command,
+            bash_command=enrich_bash_command,
             dag=dag,
             env=environment)
 
-        wait_sensor >> load_operator >> copy_operator
+        if dependencies is not None and len(dependencies) > 0:
+            for dependency in dependencies:
+                dependency >> enrich_operator
+        return enrich_operator
 
 
-    if load_blocks:
-        add_load_tasks('blocks', 'csv')
+    load_blocks_task = add_load_tasks('blocks', 'csv')
+    load_transactions_task = add_load_tasks('transactions', 'csv')
+    load_receipts_task = add_load_tasks('receipts', 'csv')
+    load_logs_task = add_load_tasks('logs', 'json')
+    load_contracts_task = add_load_tasks('contracts', 'json')
+    load_tokens_task = add_load_tasks('tokens', 'csv', '--allow_quoted_newlines')
+    load_token_transfers_task = add_load_tasks('token_transfers', 'csv')
 
-    if load_transactions:
-        add_load_tasks('transactions', 'csv')
-
-    if load_receipts:
-        add_load_tasks('receipts', 'csv')
-
-    if load_logs:
-        add_load_tasks('logs', 'json')
-
-    if load_contracts:
-        add_load_tasks('contracts', 'json')
-
-    if load_tokens:
-        add_load_tasks('tokens', 'csv', '--allow_quoted_newlines')
-
-    if load_transfers:
-        add_load_tasks('token_transfers', 'csv')
+    add_enrich_tasks('blocks', time_partitioning_field='timestamp', dependencies=[load_blocks_task])
+    add_enrich_tasks('transactions', dependencies=[load_blocks_task, load_transactions_task, load_receipts_task])
+    add_enrich_tasks('logs', dependencies=[load_blocks_task, load_logs_task])
+    add_enrich_tasks('contracts', dependencies=[load_blocks_task, load_contracts_task])
+    add_enrich_tasks('tokens', time_partitioning_field=None, dependencies=[load_tokens_task])
+    add_enrich_tasks('token_transfers', dependencies=[load_blocks_task, load_token_transfers_task])

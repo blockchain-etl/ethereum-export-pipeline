@@ -4,6 +4,7 @@ import os
 from datetime import datetime, timedelta
 
 from airflow import models
+from airflow.contrib.operators.bigquery_operator import BigQueryOperator
 from airflow.contrib.sensors.gcs_sensor import GoogleCloudStorageObjectSensor
 from airflow.operators.bash_operator import BashOperator
 
@@ -123,6 +124,18 @@ with models.DAG(
         return enrich_operator
 
 
+    def add_validate_tasks(task, sql, dependencies=None):
+        validated_task = BigQueryOperator(
+            task_id='validate_{task}'.format(task=task),
+            bql=sql,
+            use_legacy_sql=False,
+            dag=dag)
+        if dependencies is not None and len(dependencies) > 0:
+            for dependency in dependencies:
+                dependency >> validated_task
+        return validated_task
+
+
     load_blocks_task = add_load_tasks('blocks', 'csv')
     load_transactions_task = add_load_tasks('transactions', 'csv')
     load_receipts_task = add_load_tasks('receipts', 'csv')
@@ -131,9 +144,49 @@ with models.DAG(
     load_tokens_task = add_load_tasks('tokens', 'csv', '--allow_quoted_newlines')
     load_token_transfers_task = add_load_tasks('token_transfers', 'csv')
 
-    add_enrich_tasks('blocks', time_partitioning_field='timestamp', dependencies=[load_blocks_task])
-    add_enrich_tasks('transactions', dependencies=[load_blocks_task, load_transactions_task, load_receipts_task])
-    add_enrich_tasks('logs', dependencies=[load_blocks_task, load_logs_task])
-    add_enrich_tasks('contracts', dependencies=[load_blocks_task, load_contracts_task])
-    add_enrich_tasks('tokens', time_partitioning_field=None, dependencies=[load_tokens_task])
-    add_enrich_tasks('token_transfers', dependencies=[load_blocks_task, load_token_transfers_task])
+    enrich_blocks_task = add_enrich_tasks(
+        'blocks', time_partitioning_field='timestamp', dependencies=[load_blocks_task])
+    enrich_transactions_task = add_enrich_tasks(
+        'transactions', dependencies=[load_blocks_task, load_transactions_task, load_receipts_task])
+    enrich_logs_task = add_enrich_tasks(
+        'logs', dependencies=[load_blocks_task, load_logs_task])
+    enrich_contracts_task = add_enrich_tasks(
+        'contracts', dependencies=[load_blocks_task, load_contracts_task])
+    enrich_tokens_task = add_enrich_tasks(
+        'tokens', time_partitioning_field=None, dependencies=[load_tokens_task])
+    enrich_token_transfers_task = add_enrich_tasks(
+        'token_transfers', dependencies=[load_blocks_task, load_token_transfers_task])
+
+    # The query below will fail when the condition is not met
+    # Have to use this trick since the Python 2 version of BigQueryCheckOperator doesn't support standard SQL
+    # and legacy SQL can't be used to query partitioned tables.
+    validated_blocks_sql = '''
+    SELECT IF(
+    (SELECT MAX(number) FROM `bigquery-public-data.ethereum_blockchain.blocks`) + 1 = 
+    (SELECT COUNT(*) FROM `bigquery-public-data.ethereum_blockchain.blocks`) AND 
+    (SELECT COUNT(*) FROM `bigquery-public-data.ethereum_blockchain.blocks` WHERE DATE(timestamp) = '{{ds}}') > 0, 1, 
+    CAST((SELECT 'Total number of blocks except genesis is not equal to last block number or there are no blocks on {{ds}}') AS INT64))
+    '''
+    add_validate_tasks('blocks', validated_blocks_sql, [enrich_blocks_task])
+
+    validated_transactions_sql = '''
+    SELECT IF((SELECT sum(transaction_count) FROM `bigquery-public-data.ethereum_blockchain.blocks`) = 
+    (SELECT COUNT(*) FROM `bigquery-public-data.ethereum_blockchain.transactions`) AND 
+    (SELECT COUNT(*) FROM `bigquery-public-data.ethereum_blockchain.transactions` WHERE DATE(block_timestamp) = '{{ds}}') > 0, 1, 
+    CAST((SELECT 'Total number of transactions is not equal to sum of transaction_count in blocks table or there are no transactions on {{ds}}') AS INT64))
+    '''
+    add_validate_tasks('transactions', validated_transactions_sql, [enrich_blocks_task, enrich_transactions_task])
+
+    validated_logs_sql = '''
+        SELECT IF(
+        (SELECT COUNT(*) FROM `bigquery-public-data.ethereum_blockchain.logs` WHERE DATE(block_timestamp) = '{{ds}}') > 0, 1, 
+        CAST((SELECT 'There are no logs on {{ds}}') AS INT64))    
+        '''
+    add_validate_tasks('logs', validated_logs_sql, [enrich_logs_task])
+
+    validated_token_transfers_sql = '''
+    SELECT IF(
+    (SELECT COUNT(*) FROM `bigquery-public-data.ethereum_blockchain.token_transfers` WHERE DATE(block_timestamp) = '{{ds}}') > 0, 1, 
+    CAST((SELECT 'There are no token transfers on {{ds}}') AS INT64))    
+    '''
+    add_validate_tasks('token_transfers', validated_token_transfers_sql, [enrich_token_transfers_task])

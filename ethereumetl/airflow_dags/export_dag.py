@@ -98,7 +98,7 @@ with models.DAG(
     web3_provider_uri = os.environ.get('WEB3_PROVIDER_URI', 'https://mainnet.infura.io/')
     ethereumetl_repo_branch = os.environ.get('ETHEREUMETL_REPO_BRANCH', 'master')
     dags_folder = os.environ.get('DAGS_FOLDER', '/home/airflow/gcs/dags')
-    export_max_workers = os.environ.get('EXPORT_MAX_WORKERS', 5)
+    export_max_workers = os.environ.get('EXPORT_MAX_WORKERS', '5')
 
     # ds is 1 day behind the date on which the run is scheduled, e.g. if the dag is scheduled to run at
     # 1am on January 2, ds will be January 1.

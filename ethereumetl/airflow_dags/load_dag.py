@@ -61,7 +61,7 @@ with models.DAG(
         wait_sensor = GoogleCloudStorageObjectSensor(
             task_id='wait_latest_{task}'.format(task=task),
             dag=dag,
-            timeout=60 * 30,
+            timeout=60 * 60,
             poke_interval=60,
             bucket=output_bucket,
             object='export/{task}/block_date={datestamp}/{task}.{file_format}'.format(

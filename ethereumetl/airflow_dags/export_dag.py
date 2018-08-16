@@ -54,7 +54,7 @@ with models.DAG(
     export_blocks_and_transactions_command = \
         setup_command + ' && ' + \
         'echo $BLOCK_RANGE > blocks_meta.txt && ' \
-        '$PYTHON3 export_blocks_and_transactions.py -w 2 -s $START_BLOCK -e $END_BLOCK ' \
+        '$PYTHON3 export_blocks_and_transactions.py -w $EXPORT_MAX_WORKERS -s $START_BLOCK -e $END_BLOCK ' \
         '-p $WEB3_PROVIDER_URI --blocks-output blocks.csv --transactions-output transactions.csv && ' \
         'gsutil cp blocks.csv $EXPORT_LOCATION_URI/blocks/block_date=$EXECUTION_DATE/blocks.csv && ' \
         'gsutil cp transactions.csv $EXPORT_LOCATION_URI/transactions/block_date=$EXECUTION_DATE/transactions.csv && ' \
@@ -64,7 +64,7 @@ with models.DAG(
         setup_command + ' && ' + \
         'gsutil cp $EXPORT_LOCATION_URI/transactions/block_date=$EXECUTION_DATE/transactions.csv transactions.csv && ' \
         '$PYTHON3 extract_csv_column.py -i transactions.csv -o transaction_hashes.txt -c hash && ' \
-        '$PYTHON3 export_receipts_and_logs.py -w 2 --transaction-hashes transaction_hashes.txt ' \
+        '$PYTHON3 export_receipts_and_logs.py -w $EXPORT_MAX_WORKERS --transaction-hashes transaction_hashes.txt ' \
         '-p $WEB3_PROVIDER_URI --receipts-output receipts.csv --logs-output logs.json && ' \
         'gsutil cp receipts.csv $EXPORT_LOCATION_URI/receipts/block_date=$EXECUTION_DATE/receipts.csv && ' \
         'gsutil cp logs.json $EXPORT_LOCATION_URI/logs/block_date=$EXECUTION_DATE/logs.json '
@@ -73,7 +73,7 @@ with models.DAG(
         setup_command + ' && ' + \
         'gsutil cp $EXPORT_LOCATION_URI/receipts/block_date=$EXECUTION_DATE/receipts.csv receipts.csv && ' \
         '$PYTHON3 extract_csv_column.py -i receipts.csv -o contract_addresses.txt -c contract_address && ' \
-        '$PYTHON3 export_contracts.py -w 2 --contract-addresses contract_addresses.txt ' \
+        '$PYTHON3 export_contracts.py -w $EXPORT_MAX_WORKERS --contract-addresses contract_addresses.txt ' \
         '-p $WEB3_PROVIDER_URI --output contracts.json && ' \
         'gsutil cp contracts.json $EXPORT_LOCATION_URI/contracts/block_date=$EXECUTION_DATE/contracts.json '
 
@@ -82,14 +82,14 @@ with models.DAG(
         'gsutil cp $EXPORT_LOCATION_URI/contracts/block_date=$EXECUTION_DATE/contracts.json contracts.json && ' \
         '$PYTHON3 filter_items.py -i contracts.json -p "item[\'is_erc20\'] or item[\'is_erc721\']" | ' \
         '$PYTHON3 extract_field.py -f address -o token_addresses.txt && ' \
-        '$PYTHON3 export_tokens.py -w 2 --token-addresses token_addresses.txt ' \
+        '$PYTHON3 export_tokens.py -w $EXPORT_MAX_WORKERS --token-addresses token_addresses.txt ' \
         '-p $WEB3_PROVIDER_URI --output tokens.csv && ' \
         'gsutil cp tokens.csv $EXPORT_LOCATION_URI/tokens/block_date=$EXECUTION_DATE/tokens.csv '
 
     extract_token_transfers_command = \
         setup_command + ' && ' + \
         'gsutil cp $EXPORT_LOCATION_URI/logs/block_date=$EXECUTION_DATE/logs.json logs.json && ' \
-        '$PYTHON3 extract_token_transfers.py -w 2 --logs logs.json --output token_transfers.csv && ' \
+        '$PYTHON3 extract_token_transfers.py -w $EXPORT_MAX_WORKERS --logs logs.json --output token_transfers.csv && ' \
         'gsutil cp token_transfers.csv $EXPORT_LOCATION_URI/token_transfers/block_date=$EXECUTION_DATE/token_transfers.csv '
 
     output_bucket = os.environ.get('OUTPUT_BUCKET')
@@ -98,6 +98,7 @@ with models.DAG(
     web3_provider_uri = os.environ.get('WEB3_PROVIDER_URI', 'https://mainnet.infura.io/')
     ethereumetl_repo_branch = os.environ.get('ETHEREUMETL_REPO_BRANCH', 'master')
     dags_folder = os.environ.get('DAGS_FOLDER', '/home/airflow/gcs/dags')
+    export_max_workers = os.environ.get('EXPORT_MAX_WORKERS', 5)
 
     # ds is 1 day behind the date on which the run is scheduled, e.g. if the dag is scheduled to run at
     # 1am on January 2, ds will be January 1.
@@ -106,7 +107,8 @@ with models.DAG(
         'ETHEREUMETL_REPO_BRANCH': ethereumetl_repo_branch,
         'WEB3_PROVIDER_URI': web3_provider_uri,
         'OUTPUT_BUCKET': output_bucket,
-        'DAGS_FOLDER': dags_folder
+        'DAGS_FOLDER': dags_folder,
+        'EXPORT_MAX_WORKERS': export_max_workers
     }
 
     # TODO: Add timeouts
@@ -117,45 +119,39 @@ with models.DAG(
     export_tokens = get_boolean_env_variable('EXPORT_TOKENS', True)
     extract_token_transfers = get_boolean_env_variable('EXTRACT_TOKEN_TRANSFERS', True)
 
-    if export_blocks_and_transactions:
-        export_blocks_and_transactions_operator = bash_operator.BashOperator(
-            task_id='export_blocks_and_transactions',
-            bash_command=export_blocks_and_transactions_command,
-            dag=dag,
-            env=environment)
 
-    if export_receipts_and_logs:
-        export_receipts_and_logs_operator = bash_operator.BashOperator(
-            task_id='export_receipts_and_logs',
-            bash_command=export_receipts_and_logs_command,
-            dag=dag,
-            env=environment)
-        if export_blocks_and_transactions:
-            export_blocks_and_transactions_operator >> export_receipts_and_logs_operator
+    def add_export_task(toggle, task_id, bash_command, dependencies=None):
+        if toggle:
+            operator = bash_operator.BashOperator(
+                task_id=task_id,
+                bash_command=bash_command,
+                execution_timeout=timedelta(hours=15),
+                dag=dag,
+                env=environment)
+            if dependencies is not None and len(dependencies) > 0:
+                for dependency in dependencies:
+                    if dependency is not None:
+                        dependency >> operator
+            return operator
+        else:
+            return None
 
-    if export_contracts:
-        export_contracts_operator = bash_operator.BashOperator(
-            task_id='export_contracts',
-            bash_command=export_contracts_command,
-            dag=dag,
-            env=environment)
-        if export_receipts_and_logs:
-            export_receipts_and_logs_operator >> export_contracts_operator
 
-    if export_tokens:
-        export_tokens_operator = bash_operator.BashOperator(
-            task_id='export_tokens',
-            bash_command=export_tokens_command,
-            dag=dag,
-            env=environment)
-        if export_contracts:
-            export_contracts_operator >> export_tokens_operator
+    export_blocks_and_transactions_operator = add_export_task(
+        export_blocks_and_transactions, 'export_blocks_and_transactions', export_blocks_and_transactions_command)
 
-    if extract_token_transfers:
-        extract_token_transfers_operator = bash_operator.BashOperator(
-            task_id='extract_token_transfers',
-            bash_command=extract_token_transfers_command,
-            dag=dag,
-            env=environment)
-        if export_receipts_and_logs:
-            export_receipts_and_logs_operator >> extract_token_transfers_operator
+    export_receipts_and_logs_operator = add_export_task(
+        export_receipts_and_logs, 'export_receipts_and_logs', export_receipts_and_logs_command,
+        dependencies=[export_blocks_and_transactions_operator])
+
+    export_contracts_operator = add_export_task(
+        export_contracts, 'export_contracts', export_contracts_command,
+        dependencies=[export_receipts_and_logs_operator])
+
+    export_tokens_operator = add_export_task(
+        export_tokens, 'export_tokens', export_tokens_command,
+        dependencies=[export_contracts_operator])
+
+    extract_token_transfers_operator = add_export_task(
+        extract_token_transfers, 'extract_token_transfers', extract_token_transfers_command,
+        dependencies=[export_receipts_and_logs_operator])

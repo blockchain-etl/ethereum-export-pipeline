@@ -3,7 +3,7 @@ from airflow import DAG
 from airflow.operators.bash_operator import BashOperator
 from datetime import timedelta
 
-default_args = {
+default_dag_args = {
     'retries': 1,
     'retry_delay': timedelta(minutes=5),
     'start_date': airflow.utils.dates.days_ago(0)
@@ -12,7 +12,7 @@ default_args = {
 
 dag = DAG(
     'liveness_dag',
-    default_args=default_args,
+    default_args=default_dag_args,
     description='liveness monitoring dag',
     schedule_interval=timedelta(minutes=10))
 

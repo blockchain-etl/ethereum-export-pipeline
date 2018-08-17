@@ -226,9 +226,9 @@ with models.DAG(
     enrich_token_transfers_task = add_enrich_tasks(
         'token_transfers', dependencies=[load_blocks_task, load_token_transfers_task])
 
-    add_validate_tasks('blocks1', [enrich_blocks_task])
-    add_validate_tasks('blocks2', [enrich_blocks_task])
-    add_validate_tasks('transactions1', [enrich_blocks_task, enrich_transactions_task])
-    add_validate_tasks('transactions2', [enrich_blocks_task, enrich_transactions_task])
-    add_validate_tasks('logs', [enrich_logs_task])
-    add_validate_tasks('token_transfers', [enrich_token_transfers_task])
+    add_validate_tasks('blocks_count', [enrich_blocks_task])
+    add_validate_tasks('blocks_latest', [enrich_blocks_task])
+    add_validate_tasks('transactions_count', [enrich_blocks_task, enrich_transactions_task])
+    add_validate_tasks('transactions_latest', [enrich_blocks_task, enrich_transactions_task])
+    add_validate_tasks('logs_latest', [enrich_logs_task])
+    add_validate_tasks('token_transfers_latest', [enrich_token_transfers_task])

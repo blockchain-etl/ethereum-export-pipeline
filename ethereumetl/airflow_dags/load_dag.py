@@ -122,6 +122,9 @@ with models.DAG(
         def enrich_task():
             client = bigquery.Client()
 
+            # Need to use a temporary table because bq query sets field modes to NULLABLE and descriptions to null
+            # when writeDisposition is WRITE_TRUNCATE
+
             # Create a temporary table
             temp_table_name = '{task}_{milliseconds}'.format(task=task, milliseconds=int(round(time.time() * 1000)))
             temp_table_ref = client.dataset('ethereum_blockchain_temp').table(temp_table_name)

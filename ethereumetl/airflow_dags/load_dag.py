@@ -21,12 +21,15 @@ def get_boolean_env_variable(env_variable_name, default=True):
 default_dag_args = {
     'depends_on_past': False,
     'start_date': datetime(2018, 7, 1),
-    'email': ['evge.medvedev@gmail.com'],
     'email_on_failure': True,
     'email_on_retry': True,
     'retries': 5,
     'retry_delay': timedelta(minutes=5)
 }
+
+notification_emails = os.environ.get('NOTIFICATION_EMAILS')
+if notification_emails and len(notification_emails) > 0:
+    default_dag_args['email'] = [email.strip() for email in notification_emails.split(',')]
 
 # Define a DAG (directed acyclic graph) of tasks.
 # Any task you create within the context manager is automatically added to the

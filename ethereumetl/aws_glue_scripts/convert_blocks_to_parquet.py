@@ -20,29 +20,29 @@ job.init(args['JOB_NAME'], args)
 data_source = glueContext.create_dynamic_frame.from_catalog(database="ethereumetl", table_name="blocks",
                                                             transformation_ctx="data_source")
 ## @type: ApplyMapping
-## @args: [mapping = [("block_number", "long", "block_number", "long"), ("block_hash", "string", "block_hash", "string"), ("block_parent_hash", "string", "block_parent_hash", "string"), ("block_nonce", "string", "block_nonce", "string"), ("block_sha3_uncles", "string", "block_sha3_uncles", "string"), ("block_logs_bloom", "string", "block_logs_bloom", "string"), ("block_transactions_root", "string", "block_transactions_root", "string"), ("block_state_root", "string", "block_state_root", "string"), ("block_miner", "string", "block_miner", "string"), ("block_difficulty", "long", "block_difficulty", "long"), ("block_total_difficulty", "long", "block_total_difficulty", "long"), ("block_size", "long", "block_size", "long"), ("block_extra_data", "string", "block_extra_data", "string"), ("block_gas_limit", "long", "block_gas_limit", "long"), ("block_gas_used", "long", "block_gas_used", "long"), ("block_timestamp", "long", "block_timestamp", "long"), ("block_transaction_count", "long", "block_transaction_count", "long")], transformation_ctx = "applymapping1"]
+## @args: [mapping = [("number", "long", "number", "long"), ("hash", "string", "hash", "string"), ("parent_hash", "string", "parent_hash", "string"), ("nonce", "string", "nonce", "string"), ("sha3_uncles", "string", "sha3_uncles", "string"), ("logs_bloom", "string", "logs_bloom", "string"), ("transactions_root", "string", "transactions_root", "string"), ("state_root", "string", "state_root", "string"), ("miner", "string", "miner", "string"), ("difficulty", "long", "difficulty", "long"), ("total_difficulty", "long", "total_difficulty", "long"), ("size", "long", "size", "long"), ("extra_data", "string", "extra_data", "string"), ("gas_limit", "long", "gas_limit", "long"), ("gas_used", "long", "gas_used", "long"), ("timestamp", "long", "timestamp", "long"), ("transaction_count", "long", "transaction_count", "long")], transformation_ctx = "applymapping1"]
 ## @return: mapped_frame
 ## @inputs: [frame = data_source]
 mapped_frame = ApplyMapping.apply(frame=data_source, mappings=[
     ("start_block", "string", "start_block", "string"),
     ("end_block", "string", "end_block", "string"),
-    ("block_number", "long", "block_number", "long"),
-    ("block_hash", "string", "block_hash", "string"),
-    ("block_parent_hash", "string", "block_parent_hash", "string"),
-    ("block_nonce", "string", "block_nonce", "string"),
-    ("block_sha3_uncles", "string", "block_sha3_uncles", "string"),
-    ("block_logs_bloom", "string", "block_logs_bloom", "string"),
-    ("block_transactions_root", "string", "block_transactions_root", "string"),
-    ("block_state_root", "string", "block_state_root", "string"),
-    ("block_miner", "string", "block_miner", "string"),
-    ("block_difficulty", "string", "block_difficulty", "decimal(38,0)"),
-    ("block_total_difficulty", "string", "block_total_difficulty", "decimal(38,0)"),
-    ("block_size", "long", "block_size", "long"),
-    ("block_extra_data", "string", "block_extra_data", "string"),
-    ("block_gas_limit", "long", "block_gas_limit", "long"),
-    ("block_gas_used", "long", "block_gas_used", "long"),
-    ("block_timestamp", "long", "block_timestamp", "long"),
-    ("block_transaction_count", "long", "block_transaction_count", "long")],
+    ("number", "long", "number", "long"),
+    ("hash", "string", "hash", "string"),
+    ("parent_hash", "string", "parent_hash", "string"),
+    ("nonce", "string", "nonce", "string"),
+    ("sha3_uncles", "string", "sha3_uncles", "string"),
+    ("logs_bloom", "string", "logs_bloom", "string"),
+    ("transactions_root", "string", "transactions_root", "string"),
+    ("state_root", "string", "state_root", "string"),
+    ("miner", "string", "miner", "string"),
+    ("difficulty", "string", "difficulty", "decimal(38,0)"),
+    ("total_difficulty", "string", "total_difficulty", "decimal(38,0)"),
+    ("size", "long", "size", "long"),
+    ("extra_data", "string", "extra_data", "string"),
+    ("gas_limit", "long", "gas_limit", "long"),
+    ("gas_used", "long", "gas_used", "long"),
+    ("timestamp", "long", "timestamp", "long"),
+    ("transaction_count", "long", "transaction_count", "long")],
                                   transformation_ctx="mapped_frame")
 
 ## @type: ResolveChoice

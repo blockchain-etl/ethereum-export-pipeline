@@ -1,31 +1,65 @@
 from __future__ import print_function
 
+import json
+import logging
 import os
+import time
 from datetime import datetime, timedelta
 
 from airflow import models
+from airflow.contrib.operators.bigquery_operator import BigQueryOperator
 from airflow.contrib.sensors.gcs_sensor import GoogleCloudStorageObjectSensor
-from airflow.operators.bash_operator import BashOperator
+from airflow.operators.python_operator import PythonOperator
+from google.cloud import bigquery
+from google.cloud.bigquery import TimePartitioning
+
+logging.basicConfig()
+logging.getLogger().setLevel(logging.DEBUG)
 
 
-def get_boolean_env_variable(env_variable_name, default=True):
-    raw_env = os.environ.get(env_variable_name)
-    if raw_env is None or len(raw_env) == 0:
-        return default
-    else:
-        return raw_env.lower() in ['true', 'yes']
+def read_bigquery_schema_from_file(filepath):
+    result = []
+    file_content = read_file(filepath)
+    json_content = json.loads(file_content)
+    for field in json_content:
+        result.append(bigquery.SchemaField(
+            name=field.get('name'),
+            field_type=field.get('type', 'STRING'),
+            mode=field.get('mode', 'NULLABLE'),
+            description=field.get('description')))
+
+    return result
+
+
+def read_file(filepath):
+    with open(filepath) as file_handle:
+        return file_handle.read()
+
+
+def submit_bigquery_job(job, configuration):
+    try:
+        logging.info('Creating a job: ' + json.dumps(configuration.to_api_repr()))
+        result = job.result()
+        logging.info(result)
+        return result
+    except Exception:
+        logging.info(job.errors)
+        raise
 
 
 # TODO start_date must be in UTC
 default_dag_args = {
     'depends_on_past': False,
     'start_date': datetime(2018, 7, 1),
-    'email': ['evge.medvedev@gmail.com'],
     'email_on_failure': True,
     'email_on_retry': True,
     'retries': 5,
     'retry_delay': timedelta(minutes=5)
 }
+
+notification_emails = os.environ.get('NOTIFICATION_EMAILS')
+if notification_emails and len(notification_emails) > 0:
+    default_dag_args['email'] = [email.strip() for email in notification_emails.split(',')]
 
 # Define a DAG (directed acyclic graph) of tasks.
 # Any task you create within the context manager is automatically added to the
@@ -34,76 +68,167 @@ with models.DAG(
         'ethereumetl_load_dag',
         catchup=False,
         # Daily at 1am
-        schedule_interval='10 1 * * *',
+        schedule_interval='30 1 * * *',
         default_args=default_dag_args) as dag:
-    setup_command = \
-        'set -o xtrace && ' \
-        'echo "OUTPUT_BUCKET: $OUTPUT_BUCKET" && ' \
-        'echo "EXECUTION_DATE: $EXECUTION_DATE" && ' \
-        'echo "ETHEREUMETL_REPO_BRANCH: $ETHEREUMETL_REPO_BRANCH" && ' \
-        'EXPORT_LOCATION_URI=gs://$OUTPUT_BUCKET/export && ' \
-        'git clone --branch $ETHEREUMETL_REPO_BRANCH http://github.com/medvedev1088/ethereum-etl && cd ethereum-etl && ' \
-        'export CLOUDSDK_PYTHON=/usr/local/bin/python'
-
-    output_bucket = os.environ.get('OUTPUT_BUCKET')
-    if output_bucket is None:
-        raise ValueError('You must set OUTPUT_BUCKET environment variable')
-    ethereumetl_repo_branch = os.environ.get('ETHEREUMETL_REPO_BRANCH', 'master')
-
-    environment = {
-        'EXECUTION_DATE': '{{ ds }}',
-        'ETHEREUMETL_REPO_BRANCH': ethereumetl_repo_branch,
-        'OUTPUT_BUCKET': output_bucket
-    }
-
-    load_blocks = get_boolean_env_variable('LOAD_BLOCKS', True)
-    load_transactions = get_boolean_env_variable('LOAD_TRANSACTIONS', True)
-    load_receipts = get_boolean_env_variable('LOAD_RECEIPTS', True)
-    load_logs = get_boolean_env_variable('LOAD_LOGS', True)
-    load_contracts = get_boolean_env_variable('LOAD_CONTRACTS', True)
-    load_transfers = get_boolean_env_variable('LOAD_TRANSFERS', True)
+    dags_folder = os.environ.get('DAGS_FOLDER', '/home/airflow/gcs/dags')
 
 
-    def add_load_tasks(task, file_format):
+    def add_load_tasks(task, file_format, allow_quoted_newlines=False):
+        output_bucket = os.environ.get('OUTPUT_BUCKET')
+        if output_bucket is None:
+            raise ValueError('You must set OUTPUT_BUCKET environment variable')
+
         wait_sensor = GoogleCloudStorageObjectSensor(
-            task_id='wait_latest_{}'.format(task),
+            task_id='wait_latest_{task}'.format(task=task),
             dag=dag,
-            timeout=60 * 30,
+            timeout=60 * 60,
             poke_interval=60,
             bucket=output_bucket,
-            object='export/{}/block_date={}/{}.{}'.format(task, '{{ds}}', task, file_format)
+            object='export/{task}/block_date={datestamp}/{task}.{file_format}'.format(
+                task=task, datestamp='{{ds}}', file_format=file_format)
         )
-        source_format = 'CSV' if file_format == 'csv' else 'NEWLINE_DELIMITED_JSON'
-        skip_leading_rows = '--skip_leading_rows=1' if file_format == 'csv' else ''
-        bash_command = \
-            setup_command + ' && ' + \
-            ('bq --location=US load --replace --source_format={} {} ' +
-             'ethereum_blockchain.{} $EXPORT_LOCATION_URI/{}/*.{} ./schemas/gcp/{}.json ').format(
-                source_format, skip_leading_rows, task, task, file_format, task)
 
-        load_operator = BashOperator(
-            task_id='load_{}'.format(task),
+        def load_task():
+            client = bigquery.Client()
+            job_config = bigquery.LoadJobConfig()
+            schema_path = os.path.join(dags_folder, 'resources/stages/raw/schemas/{task}.json'.format(task=task))
+            job_config.schema = read_bigquery_schema_from_file(schema_path)
+            job_config.source_format = bigquery.SourceFormat.CSV if file_format == 'csv' else bigquery.SourceFormat.NEWLINE_DELIMITED_JSON
+            if file_format == 'csv':
+                job_config.skip_leading_rows = 1
+            job_config.write_disposition = 'WRITE_TRUNCATE'
+            job_config.allow_quoted_newlines = allow_quoted_newlines
+
+            export_location_uri = 'gs://{output_bucket}/export'.format(output_bucket=output_bucket)
+            uri = '{export_location_uri}/{task}/*.{file_format}'.format(
+                export_location_uri=export_location_uri, task=task, file_format=file_format)
+            table_ref = client.dataset('ethereum_blockchain_raw').table(task)
+            load_job = client.load_table_from_uri(uri, table_ref, job_config=job_config)
+            submit_bigquery_job(load_job, job_config)
+            assert load_job.state == 'DONE'
+
+        load_operator = PythonOperator(
+            task_id='load_{task}'.format(task=task),
+            python_callable=load_task,
             execution_timeout=timedelta(minutes=30),
-            bash_command=bash_command,
-            dag=dag,
-            env=environment)
+            dag=dag
+        )
+
         wait_sensor >> load_operator
+        return load_operator
 
 
-    if load_blocks:
-        add_load_tasks('blocks', 'csv')
+    def add_enrich_tasks(task, time_partitioning_field='block_timestamp', dependencies=None):
+        def enrich_task():
+            client = bigquery.Client()
 
-    if load_transactions:
-        add_load_tasks('transactions', 'csv')
+            # Need to use a temporary table because bq query sets field modes to NULLABLE and descriptions to null
+            # when writeDisposition is WRITE_TRUNCATE
 
-    if load_receipts:
-        add_load_tasks('receipts', 'csv')
+            # Create a temporary table
+            temp_table_name = '{task}_{milliseconds}'.format(task=task, milliseconds=int(round(time.time() * 1000)))
+            temp_table_ref = client.dataset('ethereum_blockchain_temp').table(temp_table_name)
 
-    if load_logs:
-        add_load_tasks('logs', 'json')
+            schema_path = os.path.join(dags_folder, 'resources/stages/enrich/schemas/{task}.json'.format(task=task))
+            schema = read_bigquery_schema_from_file(schema_path)
+            table = bigquery.Table(temp_table_ref, schema=schema)
 
-    if load_contracts:
-        add_load_tasks('contracts', 'json')
+            description_path = os.path.join(dags_folder,
+                                            'resources/stages/enrich/descriptions/{task}.txt'.format(task=task))
+            table.description = read_file(description_path)
+            if time_partitioning_field is not None:
+                table.time_partitioning = TimePartitioning(field=time_partitioning_field)
+            logging.info('Creating table: ' + json.dumps(table.to_api_repr()))
+            table = client.create_table(table)
+            assert table.table_id == temp_table_name
 
-    if load_transfers:
-        add_load_tasks('erc20_transfers', 'csv')
+            # Query
+            query_job_config = bigquery.QueryJobConfig()
+            query_job_config.priority = bigquery.QueryPriority.INTERACTIVE
+            query_job_config.destination = temp_table_ref
+            sql_path = os.path.join(dags_folder, 'resources/stages/enrich/sqls/{task}.sql'.format(task=task))
+            sql = read_file(sql_path)
+            query_job = client.query(sql, location='US', job_config=query_job_config)
+            submit_bigquery_job(query_job, query_job_config)
+            assert query_job.state == 'DONE'
+
+            # Copy
+            copy_job_config = bigquery.CopyJobConfig()
+            copy_job_config.write_disposition = 'WRITE_TRUNCATE'
+
+            # Copy 1
+            dest_table_name = '{task}'.format(task=task)
+            dest_table_ref = client.dataset('ethereum_blockchain').table(dest_table_name)
+
+            copy_job = client.copy_table(temp_table_ref, dest_table_ref, location='US', job_config=copy_job_config)
+            submit_bigquery_job(copy_job, copy_job_config)
+            assert copy_job.state == 'DONE'
+
+            # Copy 2
+            public_dest_table_ref = client.dataset(
+                'ethereum_blockchain', project='bigquery-public-data').table(dest_table_name)
+            public_copy_job = client.copy_table(
+                temp_table_ref, public_dest_table_ref, location='US', job_config=copy_job_config)
+            submit_bigquery_job(public_copy_job, copy_job_config)
+            assert copy_job.state == 'DONE'
+
+            # Delete temp table
+            client.delete_table(temp_table_ref)
+
+        enrich_operator = PythonOperator(
+            task_id='enrich_{task}'.format(task=task),
+            python_callable=enrich_task,
+            execution_timeout=timedelta(minutes=30),
+            dag=dag
+        )
+
+        if dependencies is not None and len(dependencies) > 0:
+            for dependency in dependencies:
+                dependency >> enrich_operator
+        return enrich_operator
+
+
+    def add_validate_tasks(task, dependencies=None):
+        # The query below will fail when the condition is not met
+        # Have to use this trick since the Python 2 version of BigQueryCheckOperator doesn't support standard SQL
+        # and legacy SQL can't be used to query partitioned tables.
+        sql_path = os.path.join(dags_folder, 'resources/stages/validate/sqls/{task}.sql'.format(task=task))
+        sql = read_file(sql_path)
+        validate_task = BigQueryOperator(
+            task_id='validate_{task}'.format(task=task),
+            bql=sql,
+            use_legacy_sql=False,
+            dag=dag)
+        if dependencies is not None and len(dependencies) > 0:
+            for dependency in dependencies:
+                dependency >> validate_task
+        return validate_task
+
+
+    load_blocks_task = add_load_tasks('blocks', 'csv')
+    load_transactions_task = add_load_tasks('transactions', 'csv')
+    load_receipts_task = add_load_tasks('receipts', 'csv')
+    load_logs_task = add_load_tasks('logs', 'json')
+    load_contracts_task = add_load_tasks('contracts', 'json')
+    load_tokens_task = add_load_tasks('tokens', 'csv', allow_quoted_newlines=True)
+    load_token_transfers_task = add_load_tasks('token_transfers', 'csv')
+
+    enrich_blocks_task = add_enrich_tasks(
+        'blocks', time_partitioning_field='timestamp', dependencies=[load_blocks_task])
+    enrich_transactions_task = add_enrich_tasks(
+        'transactions', dependencies=[load_blocks_task, load_transactions_task, load_receipts_task])
+    enrich_logs_task = add_enrich_tasks(
+        'logs', dependencies=[load_blocks_task, load_logs_task])
+    enrich_contracts_task = add_enrich_tasks(
+        'contracts', dependencies=[load_blocks_task, load_contracts_task])
+    enrich_tokens_task = add_enrich_tasks(
+        'tokens', time_partitioning_field=None, dependencies=[load_tokens_task])
+    enrich_token_transfers_task = add_enrich_tasks(
+        'token_transfers', dependencies=[load_blocks_task, load_token_transfers_task])
+
+    add_validate_tasks('blocks1', [enrich_blocks_task])
+    add_validate_tasks('blocks2', [enrich_blocks_task])
+    add_validate_tasks('transactions1', [enrich_blocks_task, enrich_transactions_task])
+    add_validate_tasks('transactions2', [enrich_blocks_task, enrich_transactions_task])
+    add_validate_tasks('logs', [enrich_logs_task])
+    add_validate_tasks('token_transfers', [enrich_token_transfers_task])

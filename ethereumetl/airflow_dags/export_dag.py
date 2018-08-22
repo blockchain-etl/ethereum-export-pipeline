@@ -15,7 +15,6 @@ def get_boolean_env_variable(env_variable_name, default=True):
         return raw_env.lower() in ['true', 'yes']
 
 
-# TODO start_date must be in UTC
 default_dag_args = {
     'depends_on_past': False,
     'start_date': datetime(2015, 7, 30),

@@ -47,7 +47,6 @@ def submit_bigquery_job(job, configuration):
         raise
 
 
-# TODO start_date must be in UTC
 default_dag_args = {
     'depends_on_past': False,
     'start_date': datetime(2018, 7, 1),
@@ -227,8 +226,8 @@ with models.DAG(
         'token_transfers', dependencies=[load_blocks_task, load_token_transfers_task])
 
     add_validate_tasks('blocks_count', [enrich_blocks_task])
-    add_validate_tasks('blocks_latest', [enrich_blocks_task])
+    add_validate_tasks('blocks_have_latest', [enrich_blocks_task])
     add_validate_tasks('transactions_count', [enrich_blocks_task, enrich_transactions_task])
-    add_validate_tasks('transactions_latest', [enrich_blocks_task, enrich_transactions_task])
-    add_validate_tasks('logs_latest', [enrich_logs_task])
-    add_validate_tasks('token_transfers_latest', [enrich_token_transfers_task])
+    add_validate_tasks('transactions_have_latest', [enrich_transactions_task])
+    add_validate_tasks('logs_have_latest', [enrich_logs_task])
+    add_validate_tasks('token_transfers_have_latest', [enrich_token_transfers_task])

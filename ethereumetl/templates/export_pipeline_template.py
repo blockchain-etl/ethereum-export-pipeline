@@ -70,9 +70,9 @@ def generate_export_pipeline_template(
     template = Template()
 
     # CloudFormation version
-    template.add_version('2010-09-09')
+    template.set_version('2010-09-09')
 
-    template.add_description('Ethereum ETL Export CloudFormation Stack')
+    template.set_description('Ethereum ETL Export CloudFormation Stack')
 
     # Parameters
 
